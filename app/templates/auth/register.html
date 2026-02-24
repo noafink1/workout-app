@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Create Account — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center px-4 py-16">
+  <div class="w-full max-w-[360px]">
+
+    {# Logo / wordmark #}
+    <div class="mb-10 text-center">
+      <h1 class="font-heading font-[800] text-[48px] uppercase tracking-[0.12em] leading-none text-white">
+        POWER<span class="text-accent">BUILDING</span>
+      </h1>
+      <p class="mt-2 text-[10px] uppercase tracking-[0.3em] text-gray-600 font-mono">Training Log</p>
+    </div>
+
+    {# Card #}
+    <div class="bg-[#1f2937] border border-gray-700/60 border-l-[3px] border-l-accent shadow-2xl shadow-black/40 p-8">
+
+      <h2 class="font-heading font-[700] text-[13px] uppercase tracking-[0.25em] text-gray-400 mb-7">Create Account</h2>
+
+      {% if error %}
+      <div class="mb-5 px-4 py-3 bg-red-950/70 border border-red-800 text-red-300 text-[11px] font-mono uppercase tracking-widest rounded-[2px]">
+        {{ error }}
+      </div>
+      {% endif %}
+
+      <form action="/auth/register" method="post" class="space-y-5">
+
+        <div>
+          <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">Display Name</label>
+          <input
+            type="text"
+            name="display_name"
+            required
+            autocomplete="name"
+            class="w-full h-12 px-4 bg-[#111827] border border-gray-700 text-white text-sm font-mono rounded-[2px]
+                   focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all placeholder-gray-700"
+            placeholder="e.g. Alex"
+          >
+        </div>
+
+        <div>
+          <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">Email</label>
+          <input
+            type="email"
+            name="email"
+            required
+            autocomplete="email"
+            class="w-full h-12 px-4 bg-[#111827] border border-gray-700 text-white text-sm font-mono rounded-[2px]
+                   focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all placeholder-gray-700"
+            placeholder="you@example.com"
+          >
+        </div>
+
+        <div>
+          <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">Password</label>
+          <input
+            type="password"
+            name="password"
+            required
+            autocomplete="new-password"
+            class="w-full h-12 px-4 bg-[#111827] border border-gray-700 text-white text-sm font-mono rounded-[2px]
+                   focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all"
+          >
+        </div>
+
+        <button
+          type="submit"
+          class="w-full h-12 bg-accent hover:bg-[#c44e00] text-white font-heading font-[700] text-[13px] uppercase tracking-[0.22em] transition-colors rounded-[2px] mt-2"
+        >
+          Create Account
+        </button>
+
+      </form>
+    </div>
+
+    <p class="mt-6 text-center text-[11px] text-gray-600 font-mono">
+      Already have an account?
+      <a href="/auth/login" class="text-accent hover:text-[#ff7c2a] transition-colors ml-1">Sign in</a>
+    </p>
+
+  </div>
+</div>
+{% endblock %}

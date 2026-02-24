@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}My Records — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="px-4 py-8 lg:px-10 lg:py-12 max-w-2xl">
+
+  {# ── Page header ──────────────────────────────────────────────────────── #}
+  <div class="mb-8 border-b border-gray-800 pb-6">
+    <h1 class="font-heading font-[800] text-[48px] lg:text-[56px] uppercase tracking-[0.08em] text-white leading-none">
+      My Records
+    </h1>
+    <p class="mt-2 text-[11px] uppercase tracking-[0.3em] text-gray-600 font-mono">Squat · Bench Press · Deadlift</p>
+  </div>
+
+  {# ── Tab bar ──────────────────────────────────────────────────────────── #}
+  <div class="flex border-b border-gray-800 mb-6" role="tablist">
+    {% for lift in lifts_data %}
+    <button
+      id="tab-{{ loop.index0 }}"
+      role="tab"
+      aria-selected="{{ 'true' if loop.first else 'false' }}"
+      aria-controls="panel-{{ loop.index0 }}"
+      onclick="switchTab({{ loop.index0 }})"
+      class="flex-1 py-3 text-[11px] font-heading font-[700] uppercase tracking-[0.18em] border-b-2 transition-all duration-150 cursor-pointer
+             {% if loop.first %}border-accent text-white{% else %}border-transparent text-gray-600 hover:text-gray-400{% endif %}"
+    >
+      {{ lift.exercise.name }}
+    </button>
+    {% endfor %}
+  </div>
+
+  {# ── Lift panels ──────────────────────────────────────────────────────── #}
+  {% for lift in lifts_data %}
+  <div
+    id="panel-{{ loop.index0 }}"
+    role="tabpanel"
+    data-chart-id="chart-{{ lift.exercise.name | lower | replace(' ', '-') }}"
+    data-chart-labels="{{ lift.chart_labels }}"
+    data-chart-values="{{ lift.chart_values }}"
+    class="{% if not loop.first %}hidden{% endif %} space-y-4"
+  >
+
+    {# ── Current 1RM hero ─────────────────────────────────────────────── #}
+    <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-accent p-6">
+      <p class="text-[10px] uppercase tracking-[0.25em] text-gray-600 font-mono mb-2">Current 1RM</p>
+      {% if lift.current_1rm %}
+        <div class="flex items-baseline gap-3">
+          <span class="font-mono font-[500] text-[56px] lg:text-[72px] text-white leading-none tracking-tight">
+            {{ "%.4g" % lift.current_1rm.weight_kg }}
+          </span>
+          <span class="font-mono text-[20px] text-gray-500 mb-1">kg</span>
+        </div>
+        <p class="mt-3 text-[11px] text-gray-600 font-mono">
+          Set {{ lift.current_1rm.date_set.strftime('%d %b %Y') }}
+        </p>
+      {% else %}
+        <p class="font-mono text-[32px] text-gray-700 leading-none">—</p>
+        <p class="mt-2 text-[12px] text-gray-600 font-mono">No 1RM set yet. Log your first PR below.</p>
+      {% endif %}
+    </div>
+
+    {# ── Log new PR button + collapsible form ─────────────────────────── #}
+    <div>
+      <button
+        type="button"
+        onclick="toggleForm('form-{{ loop.index0 }}')"
+        id="logbtn-{{ loop.index0 }}"
+        class="w-full h-12 flex items-center justify-center gap-2 bg-accent hover:bg-[#c44e00] text-white
+               font-heading font-[700] text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]"
+      >
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Log New PR
+      </button>
+
+      <div id="form-{{ loop.index0 }}" class="hidden">
+        <form action="/prs/log" method="post"
+              class="bg-[#1f2937] border border-gray-700/50 border-t-0 p-5">
+          <input type="hidden" name="exercise_id" value="{{ lift.exercise.id }}">
+
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">
+                Weight (kg)
+              </label>
+              <input
+                type="number"
+                name="weight_kg"
+                step="1.25"
+                min="20"
+                max="500"
+                placeholder="e.g. 130"
+                required
+                class="w-full h-11 px-3 bg-[#111827] border border-gray-700 text-white text-sm font-mono rounded-[2px]
+                       focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all
+                       placeholder-gray-700"
+              >
+            </div>
+            <div>
+              <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">
+                Date
+              </label>
+              <input
+                type="date"
+                name="date_set"
+                value="{{ today }}"
+                required
+                class="w-full h-11 px-3 bg-[#111827] border border-gray-700 text-white text-sm font-mono rounded-[2px]
+                       focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all
+                       [color-scheme:dark]"
+              >
+            </div>
+          </div>
+
+          <div class="flex gap-3">
+            <button
+              type="submit"
+              class="flex-1 h-11 bg-accent hover:bg-[#c44e00] text-white font-heading font-[700]
+                     text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]"
+            >
+              Save PR
+            </button>
+            <button
+              type="button"
+              onclick="toggleForm('form-{{ loop.index0 }}')"
+              class="h-11 px-5 text-gray-500 hover:text-gray-300 font-heading font-[700]
+                     text-[11px] uppercase tracking-[0.18em] transition-colors border border-gray-700 rounded-[2px]"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {# ── Progress chart ───────────────────────────────────────────────── #}
+    {% if lift.history %}
+    <div class="bg-[#1f2937] border border-gray-700/50 p-5">
+      <p class="text-[10px] uppercase tracking-[0.25em] text-gray-600 font-mono mb-4">Progress</p>
+      <div class="relative" style="height: 200px;">
+        <canvas id="chart-{{ lift.exercise.name | lower | replace(' ', '-') }}"></canvas>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── History table ────────────────────────────────────────────────── #}
+    <div class="bg-[#1f2937] border border-gray-700/50">
+      <div class="px-5 py-4 border-b border-gray-800">
+        <p class="text-[10px] uppercase tracking-[0.25em] text-gray-600 font-mono">History</p>
+      </div>
+
+      {% if lift.history %}
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-gray-800">
+            <th class="px-5 py-3 text-left text-[9px] uppercase tracking-[0.2em] text-gray-600 font-mono font-normal">
+              Date
+            </th>
+            <th class="px-5 py-3 text-right text-[9px] uppercase tracking-[0.2em] text-gray-600 font-mono font-normal">
+              Weight
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in lift.history %}
+          <tr class="border-b border-gray-800/40 {% if loop.first %}bg-accent/[0.06]{% endif %}">
+            <td class="px-5 py-[11px] text-[12px] font-mono
+                       {% if loop.first %}text-gray-200{% else %}text-gray-500{% endif %}">
+              {{ entry.date_set.strftime('%d %b %Y') }}
+              {% if loop.first %}
+                <span class="ml-2 text-[9px] uppercase tracking-[0.15em] text-accent">current</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-[11px] text-right font-mono {% if loop.first %}text-white font-[500] text-[15px]{% else %}text-gray-500 text-[13px]{% endif %}">
+              {{ "%.4g" % entry.weight_kg }}kg
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% else %}
+      <div class="px-5 py-10 text-center">
+        <p class="text-[12px] font-mono text-gray-600">No entries yet. Log your first PR above.</p>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+  // ── State ────────────────────────────────────────────────────────────────
+  const chartInited = new Set();
+  const TOTAL_TABS = {{ lifts_data | length }};
+
+  // ── Chart initialisation (lazy — only when tab is first shown) ───────────
+  function initChart(panelEl) {
+    const canvasId = panelEl.dataset.chartId;
+    if (!canvasId || chartInited.has(canvasId)) return;
+
+    const labels = JSON.parse(panelEl.dataset.chartLabels || '[]');
+    const values = JSON.parse(panelEl.dataset.chartValues || '[]');
+    if (!labels.length) return;
+
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    chartInited.add(canvasId);
+
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          borderColor: '#e85d04',
+          backgroundColor: 'rgba(232, 93, 4, 0.10)',
+          borderWidth: 2,
+          pointBackgroundColor: '#e85d04',
+          pointBorderColor: '#111827',
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0b1120',
+            borderColor: '#374151',
+            borderWidth: 1,
+            titleColor: '#6b7280',
+            bodyColor: '#ffffff',
+            padding: 10,
+            titleFont: { family: "'DM Mono', monospace", size: 10 },
+            bodyFont: { family: "'DM Mono', monospace", size: 13 },
+            callbacks: {
+              label: ctx => `  ${ctx.parsed.y} kg`,
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(255,255,255,0.035)' },
+            border: { color: 'rgba(255,255,255,0.06)' },
+            ticks: {
+              color: '#4b5563',
+              font: { family: "'DM Mono', monospace", size: 10 },
+              maxTicksLimit: 6,
+              maxRotation: 0,
+            },
+          },
+          y: {
+            grid: { color: 'rgba(255,255,255,0.035)' },
+            border: { color: 'rgba(255,255,255,0.06)' },
+            ticks: {
+              color: '#4b5563',
+              font: { family: "'DM Mono', monospace", size: 10 },
+              callback: v => v + 'kg',
+            },
+          }
+        }
+      }
+    });
+  }
+
+  // ── Tab switching ────────────────────────────────────────────────────────
+  function switchTab(index) {
+    for (let i = 0; i < TOTAL_TABS; i++) {
+      const tab   = document.getElementById(`tab-${i}`);
+      const panel = document.getElementById(`panel-${i}`);
+      const active = (i === index);
+
+      panel.classList.toggle('hidden', !active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+
+      if (active) {
+        tab.classList.remove('border-transparent', 'text-gray-600', 'hover:text-gray-400');
+        tab.classList.add('border-accent', 'text-white');
+      } else {
+        tab.classList.remove('border-accent', 'text-white');
+        tab.classList.add('border-transparent', 'text-gray-600', 'hover:text-gray-400');
+      }
+    }
+
+    // Lazy-init chart for the newly active panel
+    const activePanel = document.getElementById(`panel-${index}`);
+    if (activePanel) initChart(activePanel);
+  }
+
+  // ── Log PR form toggle ───────────────────────────────────────────────────
+  function toggleForm(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden');
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => switchTab(0));
+</script>
+{% endblock %}

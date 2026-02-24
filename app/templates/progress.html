@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Progress — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="px-5 py-8 lg:px-10 lg:py-12 max-w-5xl">
+
+  {# ── Page header ───────────────────────────────────────────────────────── #}
+  <div class="mb-8 border-b border-gray-800 pb-6">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-2 font-mono">Stats & History</p>
+    <h1 class="font-heading font-[800] text-[48px] lg:text-[56px] uppercase tracking-[0.08em] text-white leading-none">
+      Progress
+    </h1>
+  </div>
+
+  {# ── Main Lifts ────────────────────────────────────────────────────────── #}
+  <div class="mb-10">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-4 font-mono">
+      Main Lifts · 1RM Trend
+    </p>
+    {% if lift_charts %}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {% for lc in lift_charts %}
+      <div class="bg-[#1f2937] border border-gray-700/50 border-t-[3px] border-t-accent p-5"
+           data-chart-id="orm-chart-{{ loop.index0 }}"
+           data-chart-labels="{{ lc.chart_labels }}"
+           data-chart-values="{{ lc.chart_values }}">
+
+        <p class="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-mono mb-1">
+          {{ lc.exercise.name }}
+        </p>
+
+        {% if lc.current %}
+        <div class="flex items-baseline gap-2 mb-1">
+          <span class="font-mono font-[500] text-[40px] text-white leading-none tracking-tight">
+            {{ "%.4g" % lc.current.weight_kg }}
+          </span>
+          <span class="font-mono text-[14px] text-gray-500">kg</span>
+        </div>
+        <p class="text-[10px] text-gray-700 font-mono mb-4">
+          Set {{ lc.current.date_set.strftime('%d %b %Y') }}
+        </p>
+        {% else %}
+        <p class="font-mono text-[32px] text-gray-700 leading-none mb-4">—</p>
+        {% endif %}
+
+        {% if lc.has_data %}
+        <div class="relative" style="height: 90px;">
+          <canvas id="orm-chart-{{ loop.index0 }}"></canvas>
+        </div>
+        {% else %}
+        <p class="text-[11px] text-gray-700 font-mono py-4">
+          No data yet — log a PR on the <a href="/prs" class="text-gray-500 hover:text-accent transition-colors underline underline-offset-2">PRs page</a>.
+        </p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-[#1f2937] border border-gray-800 p-8 text-center">
+      <p class="text-[12px] text-gray-600 font-mono">No main lift exercises found in the database.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Weekly Volume ─────────────────────────────────────────────────────── #}
+  <div class="mb-10">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-4 font-mono">
+      Weekly Volume · Last 8 Weeks
+    </p>
+    <div class="bg-[#1f2937] border border-gray-700/50 p-5">
+      <div class="relative" style="height: 240px;">
+        <canvas id="volume-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {# ── Accessory Bests ───────────────────────────────────────────────────── #}
+  <div>
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-4 font-mono">
+      Accessory Bests
+      {% if accessory_bests %}
+      <span class="text-gray-700">· {{ accessory_bests | length }}</span>
+      {% endif %}
+    </p>
+
+    {% if accessory_bests %}
+    <div class="bg-[#1f2937] border border-gray-700/50">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-gray-800">
+            <th class="px-5 py-3 text-left text-[9px] uppercase tracking-[0.2em] text-gray-600 font-mono font-normal w-10">#</th>
+            <th class="px-5 py-3 text-left text-[9px] uppercase tracking-[0.2em] text-gray-600 font-mono font-normal">Exercise</th>
+            <th class="px-5 py-3 text-right text-[9px] uppercase tracking-[0.2em] text-gray-600 font-mono font-normal">Best Set</th>
+            <th class="px-5 py-3 text-right text-[9px] uppercase tracking-[0.2em] text-gray-600 font-mono font-normal hidden sm:table-cell">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for best in accessory_bests %}
+          <tr class="border-b border-gray-800/40 hover:bg-gray-800/20 transition-colors">
+
+            <td class="px-5 py-[11px] font-mono text-[11px] text-gray-700">
+              {{ loop.index }}
+            </td>
+
+            <td class="px-5 py-[11px]">
+              <p class="font-mono text-[13px] text-white">{{ best.exercise.name }}</p>
+              {% if best.exercise.muscle_group %}
+              <span class="text-[9px] uppercase tracking-[0.15em] text-gray-600 font-mono">
+                {{ best.exercise.muscle_group.value }}
+              </span>
+              {% endif %}
+            </td>
+
+            <td class="px-5 py-[11px] text-right">
+              <span class="font-mono text-[15px] text-white font-[500]">
+                {{ "%.4g" % best.weight_kg }}kg
+              </span>
+              <span class="font-mono text-[13px] text-gray-500"> × {{ best.reps }}</span>
+            </td>
+
+            <td class="px-5 py-[11px] text-right font-mono text-[11px] text-gray-600 hidden sm:table-cell">
+              {{ best.date_set.strftime('%d %b %Y') }}
+            </td>
+
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% else %}
+    <div class="bg-[#1f2937] border border-gray-800 p-10 text-center">
+      <p class="font-heading font-[700] text-[13px] uppercase tracking-[0.25em] text-gray-600 mb-2">
+        No Accessory Data Yet
+      </p>
+      <p class="text-[11px] text-gray-700 font-mono">
+        Complete workouts with accessory exercises to track your bests here.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+const VOLUME_DATA = {{ volume_json | safe }};
+
+// ── Colour palette for muscle groups ─────────────────────────────────────
+const MG_COLORS = {
+  chest:     { bg: 'rgba(232, 93,  4,   0.80)', border: '#e85d04' },
+  back:      { bg: 'rgba(59,  130, 246,  0.80)', border: '#3b82f6' },
+  legs:      { bg: 'rgba(139, 92,  246,  0.80)', border: '#8b5cf6' },
+  shoulders: { bg: 'rgba(34,  197, 94,   0.80)', border: '#22c55e' },
+  arms:      { bg: 'rgba(234, 179, 8,    0.80)', border: '#eab308' },
+  core:      { bg: 'rgba(239, 68,  68,   0.80)', border: '#ef4444' },
+};
+
+// ── Shared chart axis style ───────────────────────────────────────────────
+const AXIS_STYLE = {
+  grid: { color: 'rgba(255,255,255,0.035)' },
+  border: { color: 'rgba(255,255,255,0.06)' },
+  ticks: {
+    color: '#4b5563',
+    font: { family: "'DM Mono', monospace", size: 10 },
+    maxRotation: 0,
+  },
+};
+
+const TOOLTIP_STYLE = {
+  backgroundColor: '#0b1120',
+  borderColor: '#374151',
+  borderWidth: 1,
+  titleColor: '#6b7280',
+  bodyColor: '#ffffff',
+  padding: 10,
+  titleFont: { family: "'DM Mono', monospace", size: 10 },
+  bodyFont: { family: "'DM Mono', monospace", size: 12 },
+};
+
+// ── 1RM sparkline charts ──────────────────────────────────────────────────
+document.querySelectorAll('[data-chart-id]').forEach(el => {
+  const labels = JSON.parse(el.dataset.chartLabels || '[]');
+  const values = JSON.parse(el.dataset.chartValues || '[]');
+  if (!labels.length) return;
+  const canvas = document.getElementById(el.dataset.chartId);
+  if (!canvas) return;
+
+  new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: '#e85d04',
+        backgroundColor: 'rgba(232, 93, 4, 0.10)',
+        borderWidth: 2,
+        pointBackgroundColor: '#e85d04',
+        pointBorderColor: '#111827',
+        pointBorderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...TOOLTIP_STYLE,
+          callbacks: { label: ctx => `  ${ctx.parsed.y} kg` },
+        },
+      },
+      scales: {
+        x: { ...AXIS_STYLE, ticks: { ...AXIS_STYLE.ticks, maxTicksLimit: 4 } },
+        y: {
+          ...AXIS_STYLE,
+          ticks: { ...AXIS_STYLE.ticks, callback: v => v + 'kg' },
+        },
+      },
+    },
+  });
+});
+
+// ── Weekly volume stacked bar chart ───────────────────────────────────────
+const volCanvas = document.getElementById('volume-chart');
+if (volCanvas) {
+  const coloredDatasets = VOLUME_DATA.datasets.map(ds => {
+    const key = ds.label.toLowerCase();
+    const color = MG_COLORS[key] || { bg: 'rgba(107,114,128,0.7)', border: '#6b7280' };
+    return {
+      ...ds,
+      backgroundColor: color.bg,
+      borderColor: color.border,
+      borderWidth: 1,
+      borderRadius: 2,
+    };
+  });
+
+  new Chart(volCanvas, {
+    type: 'bar',
+    data: { labels: VOLUME_DATA.labels, datasets: coloredDatasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            color: '#6b7280',
+            font: { family: "'DM Mono', monospace", size: 10 },
+            boxWidth: 12,
+            padding: 16,
+          },
+        },
+        tooltip: {
+          ...TOOLTIP_STYLE,
+          callbacks: { label: ctx => `  ${ctx.dataset.label}: ${ctx.parsed.y} sets` },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ...AXIS_STYLE,
+        },
+        y: {
+          stacked: true,
+          ...AXIS_STYLE,
+          ticks: {
+            ...AXIS_STYLE.ticks,
+            callback: v => v + ' sets',
+            stepSize: 2,
+          },
+        },
+      },
+    },
+  });
+}
+</script>
+{% endblock %}

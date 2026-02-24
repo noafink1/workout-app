@@ -1,0 +1,19 @@
+databases:
+  - name: powerbuilding-db
+    plan: free
+
+services:
+  - type: web
+    name: powerbuilding-app
+    env: python
+    buildCommand: pip install -r requirements.txt && alembic upgrade head && python seed.py
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: powerbuilding-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production

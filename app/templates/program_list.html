@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Programs — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="px-5 py-8 lg:px-10 lg:py-12 max-w-3xl">
+
+  {# ── Page header ──────────────────────────────────────────────────────── #}
+  <div class="mb-8 border-b border-gray-800 pb-6">
+    <div class="flex items-end justify-between gap-4">
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-2 font-mono">Training</p>
+        <h1 class="font-heading font-[800] text-[48px] lg:text-[56px] uppercase tracking-[0.08em] text-white leading-none">
+          My Programs
+        </h1>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <a href="/exercises"
+           class="h-12 px-4 flex items-center text-gray-500 hover:text-gray-300
+                  font-heading font-[700] text-[11px] uppercase tracking-[0.18em] transition-colors
+                  rounded-[2px] border border-gray-700 hover:border-gray-500">
+          Exercises
+        </a>
+        <a href="/programs/new"
+           class="h-12 px-6 flex items-center gap-2 bg-accent hover:bg-[#c44e00] text-white
+                  font-heading font-[700] text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          New
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {# ── In-progress draft banner ─────────────────────────────────────────── #}
+  {% if draft %}
+  <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-yellow-600 p-5 mb-5">
+    <div class="flex items-center justify-between gap-4">
+      <div class="min-w-0">
+        <p class="text-[10px] uppercase tracking-[0.25em] text-yellow-700 font-mono mb-1">Draft — In Progress</p>
+        <h3 class="font-heading font-[700] text-[18px] uppercase tracking-[0.1em] text-white truncate">
+          {{ draft.name }}
+        </h3>
+        <p class="text-[10px] text-gray-600 font-mono mt-1">
+          Started {{ draft.created_at.strftime('%d %b %Y') }}
+        </p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <a href="/programs/{{ draft.id }}/blocks"
+           class="h-10 px-5 flex items-center bg-yellow-700/20 hover:bg-yellow-700/30 text-yellow-500
+                  font-heading font-[700] text-[11px] uppercase tracking-[0.2em] transition-colors rounded-[2px] border border-yellow-800/40">
+          Continue →
+        </a>
+        <form action="/programs/{{ draft.id }}/delete" method="post" class="inline"
+              onsubmit="return confirm('Discard this draft?')">
+          <button type="submit"
+                  class="h-10 px-4 flex items-center bg-transparent hover:bg-red-900/20 text-gray-700 hover:text-red-400
+                         font-heading font-[700] text-[10px] uppercase tracking-[0.15em] transition-colors rounded-[2px] border border-gray-800 hover:border-red-900/40">
+            Discard
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Confirmed programs ───────────────────────────────────────────────── #}
+  {% if programs %}
+  <div class="mb-8">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-3 font-mono">
+      Confirmed · {{ programs | length }}
+    </p>
+    <div class="space-y-3">
+      {% for prog in programs %}
+      <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-accent p-5">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0 flex-1">
+            <a href="/programs/{{ prog.id }}/review"
+               class="block font-heading font-[700] text-[17px] uppercase tracking-[0.1em] text-white hover:text-accent truncate transition-colors">
+              {{ prog.name }}
+            </a>
+            {% if prog.description %}
+            <p class="text-[11px] text-gray-500 font-mono mt-1 truncate">{{ prog.description }}</p>
+            {% endif %}
+            <p class="text-[10px] text-gray-700 font-mono mt-2">
+              {{ prog.blocks | length }} block{{ 's' if prog.blocks | length != 1 else '' }}
+              · Created {{ prog.created_at.strftime('%d %b %Y') }}
+            </p>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <a href="/calendar/start/{{ prog.id }}"
+               class="h-9 px-4 flex items-center bg-accent hover:bg-[#c44e00] text-white
+                      font-heading font-[700] text-[10px] uppercase tracking-[0.15em]
+                      transition-colors rounded-[2px]">
+              Start
+            </a>
+            <form action="/programs/{{ prog.id }}/duplicate" method="post" class="inline">
+              <button type="submit"
+                      class="h-9 px-4 flex items-center bg-transparent hover:bg-gray-700/50 text-gray-500 hover:text-gray-300
+                             font-heading font-[700] text-[10px] uppercase tracking-[0.15em] transition-colors rounded-[2px] border border-gray-700">
+                Copy
+              </button>
+            </form>
+            <form action="/programs/{{ prog.id }}/delete" method="post" class="inline"
+                  onsubmit="return confirm('Archive {{ prog.name | e }}?')">
+              <button type="submit"
+                      class="h-9 px-4 flex items-center bg-transparent hover:bg-red-900/20 text-gray-700 hover:text-red-400
+                             font-heading font-[700] text-[10px] uppercase tracking-[0.15em] transition-colors rounded-[2px] border border-gray-800 hover:border-red-900/40">
+                Del
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% elif not draft %}
+  {# ── Empty state ──────────────────────────────────────────────────────── #}
+  <div class="bg-[#1f2937] border border-gray-800 p-12 text-center mb-8">
+    <p class="font-heading font-[700] text-[13px] uppercase tracking-[0.25em] text-gray-600 mb-3">
+      No Programs Yet
+    </p>
+    <p class="text-[11px] text-gray-700 font-mono mb-7">
+      Build your first training program to get started.
+    </p>
+    <a href="/programs/new"
+       class="inline-flex h-12 px-8 items-center gap-2 bg-accent hover:bg-[#c44e00] text-white
+              font-heading font-[700] text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      Build a Program
+    </a>
+  </div>
+  {% endif %}
+
+  {# ── Example programs ─────────────────────────────────────────────────── #}
+  {% if example_programs %}
+  <div>
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-3 font-mono">
+      Example Programs
+    </p>
+    <div class="space-y-3">
+      {% for prog in example_programs %}
+      <div class="bg-[#1f2937] border border-gray-800 p-5">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0 flex-1">
+            <p class="font-heading font-[700] text-[16px] uppercase tracking-[0.1em] text-gray-300 truncate">
+              {{ prog.name }}
+            </p>
+            {% if prog.description %}
+            <p class="text-[11px] text-gray-600 font-mono mt-1 truncate">{{ prog.description }}</p>
+            {% endif %}
+            <p class="text-[10px] text-gray-700 font-mono mt-2">
+              {{ prog.blocks | length }} block{{ 's' if prog.blocks | length != 1 else '' }}
+            </p>
+          </div>
+          <form action="/programs/{{ prog.id }}/duplicate" method="post" class="flex-shrink-0">
+            <button type="submit"
+                    class="h-9 px-5 flex items-center bg-transparent hover:bg-gray-700/50 text-gray-500 hover:text-gray-300
+                           font-heading font-[700] text-[10px] uppercase tracking-[0.15em] transition-colors rounded-[2px] border border-gray-700">
+              Use This
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

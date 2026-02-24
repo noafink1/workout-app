@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Start {{ program.name }} — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="px-5 py-8 lg:px-10 lg:py-12 max-w-2xl">
+
+  {# ── Header ───────────────────────────────────────────────────────────── #}
+  <div class="mb-8 border-b border-gray-800 pb-6">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-2 font-mono">Start Program</p>
+    <h1 class="font-heading font-[800] text-[40px] lg:text-[48px] uppercase tracking-[0.08em] text-white leading-none">
+      {{ program.name }}
+    </h1>
+    {% if program.description %}
+    <p class="text-[12px] text-gray-500 font-mono mt-2">{{ program.description }}</p>
+    {% endif %}
+    <p class="text-[10px] text-gray-700 font-mono mt-3">
+      {{ program.blocks | length }} block{{ 's' if program.blocks | length != 1 else '' }}
+      · {{ total_training_days }} training day{{ 's' if total_training_days != 1 else '' }} total
+    </p>
+  </div>
+
+  <div class="bg-[#1f2937] border border-gray-700/50 p-6">
+    <form method="post" action="/calendar/start/{{ program.id }}" id="schedule-form">
+
+      {# Start date #}
+      <div class="mb-6">
+        <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">
+          Start Date *
+        </label>
+        <input type="date" name="start_date" id="start-date"
+               value="{{ today.isoformat() }}" required
+               class="w-full sm:w-48 h-11 px-3 bg-[#111827] border border-gray-700 text-white text-sm font-mono
+                      rounded-[2px] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30
+                      transition-all [color-scheme:dark]">
+      </div>
+
+      {# Training days of the week #}
+      <div class="mb-6">
+        <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-3 font-mono">
+          Training Days *
+        </label>
+        <p class="text-[11px] text-gray-600 font-mono mb-4">
+          Select which days of the week you will train.
+        </p>
+        <div class="grid grid-cols-7 gap-1.5 sm:gap-2">
+          {% set day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+          {% for i in range(7) %}
+          <label class="cursor-pointer select-none">
+            <input type="checkbox" name="weekdays" value="{{ i }}"
+                   {% if i in [0, 2, 4] %}checked{% endif %}
+                   class="sr-only peer"
+                   onchange="updatePreview()">
+            <div class="h-11 flex items-center justify-center
+                        font-heading font-[700] text-[11px] uppercase tracking-[0.08em]
+                        border rounded-[2px] transition-colors cursor-pointer
+                        peer-checked:bg-accent peer-checked:border-accent peer-checked:text-white
+                        border-gray-700 text-gray-600 hover:border-gray-500 hover:text-gray-400">
+              {{ day_names[i] }}
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# Schedule preview #}
+      <div id="preview-card" class="bg-[#111827] border border-gray-700/40 px-5 py-4 mb-6">
+        <p class="text-[10px] uppercase tracking-[0.2em] text-gray-600 font-mono mb-2">Estimated Schedule</p>
+        <p id="preview-text" class="text-[12px] font-mono text-gray-400">
+          <!-- filled by JS -->
+        </p>
+      </div>
+
+      {# Submit #}
+      <div class="flex items-center gap-4">
+        <button type="submit"
+                class="h-12 px-8 bg-accent hover:bg-[#c44e00] text-white font-heading font-[700]
+                       text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+          Start Program →
+        </button>
+        <a href="/programs"
+           class="text-[11px] font-mono text-gray-600 hover:text-gray-400 transition-colors uppercase tracking-wider">
+          Cancel
+        </a>
+      </div>
+
+    </form>
+  </div>
+
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+const TOTAL_TRAINING_DAYS = {{ total_training_days }};
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function getSelectedWeekdays() {
+  return [...document.querySelectorAll('[name="weekdays"]:checked')]
+    .map(el => parseInt(el.value))
+    .sort((a, b) => a - b);
+}
+
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function fmtDate(d) {
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function updatePreview() {
+  const startInput = document.getElementById('start-date');
+  const previewEl  = document.getElementById('preview-text');
+  const weekdays   = getSelectedWeekdays();
+
+  if (!startInput.value || !weekdays.length) {
+    previewEl.textContent = 'Select at least one training day.';
+    return;
+  }
+
+  // Simulate scheduling
+  const start  = new Date(startInput.value + 'T00:00:00');
+  let cur      = new Date(start);
+  let assigned = 0;
+  let endDate  = cur;
+  const MAX_ITER = TOTAL_TRAINING_DAYS * 14;
+  let iter = 0;
+
+  while (assigned < TOTAL_TRAINING_DAYS && iter < MAX_ITER) {
+    // getDay() returns 0=Sun…6=Sat; convert to 0=Mon…6=Sun
+    const wd = (cur.getDay() + 6) % 7;
+    if (weekdays.includes(wd)) {
+      endDate = new Date(cur);
+      assigned++;
+    }
+    cur = addDays(cur, 1);
+    iter++;
+  }
+
+  const weeksCount = Math.ceil(
+    (endDate - start) / (7 * 24 * 60 * 60 * 1000)
+  ) + 1;
+
+  const dayLabels = weekdays.map(d => DAY_NAMES[d]).join(' / ');
+  previewEl.innerHTML =
+    `Training <strong class="text-white">${dayLabels}</strong> — ` +
+    `${TOTAL_TRAINING_DAYS} sessions over ~${weeksCount} week${weeksCount !== 1 ? 's' : ''}.<br>` +
+    `First session: <strong class="text-white">${fmtDate(start)}</strong> · ` +
+    `Last session: <strong class="text-white">${fmtDate(endDate)}</strong>`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('start-date').addEventListener('change', updatePreview);
+  updatePreview();
+});
+</script>
+{% endblock %}

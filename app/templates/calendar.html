@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="px-5 py-8 lg:px-10 lg:py-12 max-w-4xl">
+
+  {# ── Page header ──────────────────────────────────────────────────────── #}
+  <div class="mb-7 border-b border-gray-800 pb-5">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-2 font-mono">Schedule</p>
+    <h1 class="font-heading font-[800] text-[48px] lg:text-[56px] uppercase tracking-[0.08em] text-white leading-none">
+      Calendar
+    </h1>
+  </div>
+
+  {# ── Completed program banners ─────────────────────────────────────────── #}
+  {% for rs in run_stats %}
+  {% if rs.is_finished %}
+  <div class="bg-green-900/20 border border-green-700/40 p-5 mb-4 flex items-start justify-between gap-4">
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.25em] text-green-600 font-mono mb-1">Program Complete!</p>
+      <p class="font-heading font-[700] text-[16px] uppercase tracking-[0.1em] text-white">
+        {{ rs.run.program.name }}
+        <span class="text-gray-500 text-[13px]">Round {{ rs.run.round_number }}</span>
+      </p>
+      <p class="text-[11px] text-gray-500 font-mono mt-1">
+        All {{ rs.total }} sessions done. Enter new 1RMs to track progress, then start round {{ rs.run.round_number + 1 }}.
+      </p>
+    </div>
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <a href="/prs"
+         class="h-10 px-5 flex items-center bg-accent hover:bg-[#c44e00] text-white
+                font-heading font-[700] text-[11px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+        Log New PRs
+      </a>
+      <form action="/calendar/complete-run/{{ rs.run.id }}" method="post">
+        <button type="submit"
+                class="h-10 px-4 flex items-center bg-transparent hover:bg-gray-700/50 text-gray-500 hover:text-gray-300
+                       font-heading font-[700] text-[10px] uppercase tracking-[0.15em] transition-colors rounded-[2px] border border-gray-700">
+          Archive Run
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  {# ── Missed workouts alerts ───────────────────────────────────────────── #}
+  {% if missed %}
+  <div class="mb-5 space-y-2">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-red-700 font-mono mb-2">
+      Missed · {{ missed | length }}
+    </p>
+    {% for sw in missed %}
+    <div class="bg-red-950/20 border border-red-900/30 p-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-[10px] text-red-700 font-mono uppercase tracking-widest mb-0.5">
+          {{ sw.scheduled_date.strftime('%a %d %b %Y') }}
+        </p>
+        <p class="font-heading font-[700] text-[14px] uppercase tracking-[0.1em] text-white">
+          {{ sw.block.name }} · Day {{ sw.training_day.day_number }}
+        </p>
+        <p class="text-[10px] text-gray-600 font-mono">{{ sw.program_run.program.name }}</p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <form action="/calendar/reschedule/{{ sw.id }}" method="post" class="flex items-center gap-2">
+          <input type="date" name="new_date" value="{{ today.isoformat() }}"
+                 class="h-9 px-2 bg-[#1f2937] border border-gray-700 text-white text-[12px] font-mono
+                        rounded-[2px] focus:outline-none focus:border-accent transition-all [color-scheme:dark]">
+          <button type="submit"
+                  class="h-9 px-4 bg-accent hover:bg-[#c44e00] text-white font-heading font-[700]
+                         text-[10px] uppercase tracking-[0.15em] transition-colors rounded-[2px]">
+            Reschedule
+          </button>
+        </form>
+        <form action="/calendar/skip/{{ sw.id }}" method="post">
+          <button type="submit"
+                  class="h-9 px-3 bg-transparent hover:bg-gray-700/50 text-gray-600 hover:text-gray-400
+                         font-heading font-[700] text-[10px] uppercase tracking-[0.15em] transition-colors
+                         rounded-[2px] border border-gray-800 hover:border-gray-600">
+            Skip
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── Active runs summary ──────────────────────────────────────────────── #}
+  {% set active_non_finished = run_stats | selectattr('is_finished', 'equalto', false) | list %}
+  {% if active_non_finished %}
+  <div class="mb-6 space-y-2">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 font-mono mb-2">Active Programs</p>
+    {% for rs in active_non_finished %}
+    <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-accent p-4 flex items-center justify-between gap-4">
+      <div class="min-w-0">
+        <p class="font-heading font-[700] text-[14px] uppercase tracking-[0.1em] text-white truncate">
+          {{ rs.run.program.name }}
+          <span class="text-gray-600 text-[12px] ml-1">Round {{ rs.run.round_number }}</span>
+        </p>
+        <div class="flex items-center gap-4 mt-1.5">
+          <p class="text-[10px] text-gray-600 font-mono">
+            {{ rs.done }} / {{ rs.total }} sessions done
+          </p>
+          {% if rs.total > 0 %}
+          <div class="flex-1 max-w-[120px] h-1 bg-gray-800 rounded-full overflow-hidden">
+            <div class="h-full bg-accent rounded-full transition-all"
+                 style="width: {{ ((rs.done / rs.total) * 100) | int }}%"></div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <p class="text-[10px] text-gray-600 font-mono">{{ rs.remaining }} left</p>
+        <form action="/calendar/abandon/{{ rs.run.id }}" method="post"
+              onsubmit="return confirm('Abandon {{ rs.run.program.name | e }}? This will stop the program run but keep all completed sessions.')">
+          <button type="submit"
+                  class="h-8 px-3 flex items-center bg-transparent hover:bg-red-900/20 text-gray-700 hover:text-red-400
+                         font-heading font-[700] text-[9px] uppercase tracking-[0.15em] transition-colors
+                         rounded-[2px] border border-gray-800 hover:border-red-900/40">
+            Abandon
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% elif not run_stats %}
+  {# ── Empty state — no programs started ────────────────────────────────── #}
+  <div class="bg-[#1f2937] border border-gray-800 p-10 text-center mb-6">
+    <p class="font-heading font-[700] text-[13px] uppercase tracking-[0.25em] text-gray-600 mb-3">
+      No Active Programs
+    </p>
+    <p class="text-[11px] text-gray-700 font-mono mb-7">
+      Start a program to schedule workouts on your calendar.
+    </p>
+    <a href="/programs"
+       class="inline-flex h-12 px-8 items-center gap-2 bg-accent hover:bg-[#c44e00] text-white
+              font-heading font-[700] text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+      Go to Programs
+    </a>
+  </div>
+  {% endif %}
+
+  {# ── Monthly calendar ─────────────────────────────────────────────────── #}
+  <div class="bg-[#1f2937] border border-gray-700/50">
+
+    {# Month navigation header #}
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-700/50">
+      <a href="/calendar?year={{ prev_month[0] }}&month={{ prev_month[1] }}"
+         class="w-9 h-9 flex items-center justify-center text-gray-600 hover:text-white
+                hover:bg-gray-700/50 transition-colors rounded-[2px]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <h2 class="font-heading font-[700] text-[15px] uppercase tracking-[0.2em] text-white">
+        {{ month_name }}
+      </h2>
+      <a href="/calendar?year={{ next_month[0] }}&month={{ next_month[1] }}"
+         class="w-9 h-9 flex items-center justify-center text-gray-600 hover:text-white
+                hover:bg-gray-700/50 transition-colors rounded-[2px]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+      </a>
+    </div>
+
+    {# Day-of-week headers #}
+    <div class="grid grid-cols-7 border-b border-gray-700/50">
+      {% for day_name in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+      <div class="py-2 text-center text-[9px] uppercase tracking-[0.2em] text-gray-700 font-mono
+                  {% if not loop.last %}border-r border-gray-800/50{% endif %}">
+        {{ day_name }}
+      </div>
+      {% endfor %}
+    </div>
+
+    {# Calendar grid #}
+    <div class="grid grid-cols-7">
+      {# Leading empty cells for days before the 1st #}
+      {% for _ in range(first_weekday) %}
+      <div class="min-h-[72px] lg:min-h-[90px] border-r border-b border-gray-800/50 bg-[#111827]/40"></div>
+      {% endfor %}
+
+      {# Day cells — pre-computed in the route #}
+      {% for day in days_data %}
+      {% set col = (first_weekday + day.day_num - 1) % 7 %}
+      <div class="min-h-[72px] lg:min-h-[90px] p-1.5
+                  {% if col != 6 %}border-r{% endif %} border-b border-gray-800/50
+                  {% if day.is_today %}bg-accent/[0.06]{% endif %}">
+
+        <span class="block text-[11px] font-mono leading-none mb-1.5
+                     {% if day.is_today %}text-accent font-[700]{% else %}text-gray-700{% endif %}">
+          {{ day.day_num }}{% if day.is_today %} ●{% endif %}
+        </span>
+
+        {% for sw in day.workouts %}
+        {% if sw.completed_at %}
+          {% set chip = "bg-green-900/60 text-green-400 hover:bg-green-900/80" %}
+        {% elif day.is_past %}
+          {% set chip = "bg-red-900/40 text-red-400 hover:bg-red-900/60" %}
+        {% else %}
+          {% set chip = "bg-accent/20 text-accent hover:bg-accent/30" %}
+        {% endif %}
+        <a href="/workouts/{{ sw.id }}"
+           class="block px-1.5 py-[3px] mb-0.5 text-[8px] lg:text-[9px] font-mono uppercase
+                  truncate rounded-[1px] transition-colors {{ chip }}"
+           title="{{ sw.block.name }} · Day {{ sw.training_day.day_number }}">
+          B{{ sw.block.block_number }}D{{ sw.training_day.day_number }}
+        </a>
+        {% endfor %}
+      </div>
+
+      {# After the last day, fill trailing cells to complete the week row #}
+      {% if loop.last %}
+        {% set trailing = (7 - ((first_weekday + days_in_month) % 7)) % 7 %}
+        {% for _ in range(trailing) %}
+        <div class="min-h-[72px] lg:min-h-[90px] bg-[#111827]/40"></div>
+        {% endfor %}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+  </div>
+
+  {# ── Legend ───────────────────────────────────────────────────────────── #}
+  <div class="flex items-center gap-5 mt-4 px-1">
+    <span class="flex items-center gap-1.5 text-[10px] font-mono text-gray-600">
+      <span class="w-2 h-2 rounded-[1px] bg-accent/40"></span> Scheduled
+    </span>
+    <span class="flex items-center gap-1.5 text-[10px] font-mono text-gray-600">
+      <span class="w-2 h-2 rounded-[1px] bg-green-900/70"></span> Completed
+    </span>
+    <span class="flex items-center gap-1.5 text-[10px] font-mono text-gray-600">
+      <span class="w-2 h-2 rounded-[1px] bg-red-900/50"></span> Missed
+    </span>
+  </div>
+
+</div>
+{% endblock %}

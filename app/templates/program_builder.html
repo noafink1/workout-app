@@ -1,0 +1,562 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if step == 1 %}New Program
+  {% elif step == 2 %}Set Up Blocks
+  {% elif step == 3 %}Add Exercises
+  {% else %}Review Program
+  {% endif %} — PowerBuilding
+{% endblock %}
+
+{# ── Macro: single exercise row ──────────────────────────────────────────── #}
+{% macro exercise_row(exercises, ex_id=None, set_count=3, reps=5, intensity_type='percentage', intensity_value=75, notes='') %}
+<div class="exercise-row bg-[#0b1120] border border-gray-800 p-4 rounded-[2px] relative">
+
+  <button type="button" onclick="removeRow(this)"
+          class="absolute top-3 right-3 w-7 h-7 flex items-center justify-center
+                 text-gray-700 hover:text-red-400 transition-colors text-lg leading-none font-mono"
+          title="Remove">×</button>
+
+  {# Exercise select #}
+  <div class="mb-3">
+    <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1.5 font-mono">Exercise</label>
+    <select name="exercise_id" required
+            class="w-full h-10 px-3 bg-[#1f2937] border border-gray-700 text-white text-[13px] font-mono
+                   rounded-[2px] focus:outline-none focus:border-accent transition-all appearance-none
+                   cursor-pointer">
+      <option value="">Select exercise…</option>
+      {% for cat, exs in exercises | groupby('category') %}
+      <optgroup label="{{ cat | replace('_', ' ') | title }}">
+        {% for ex in exs %}
+        <option value="{{ ex.id }}" {% if ex.id == ex_id %}selected{% endif %}>{{ ex.name }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endfor %}
+    </select>
+  </div>
+
+  {# Sets / Reps / Intensity row #}
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div>
+      <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1.5 font-mono">Sets</label>
+      <input type="number" name="set_count" value="{{ set_count }}" min="1" max="20" required
+             class="w-full h-10 px-3 bg-[#1f2937] border border-gray-700 text-white text-[13px] font-mono
+                    rounded-[2px] focus:outline-none focus:border-accent transition-all text-center">
+    </div>
+    <div>
+      <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1.5 font-mono">Reps</label>
+      <input type="number" name="reps" value="{{ reps }}" min="1" max="99" required
+             class="w-full h-10 px-3 bg-[#1f2937] border border-gray-700 text-white text-[13px] font-mono
+                    rounded-[2px] focus:outline-none focus:border-accent transition-all text-center">
+    </div>
+    <div>
+      <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1.5 font-mono">Intensity</label>
+      <select name="intensity_type" onchange="updateIntensity(this)"
+              class="w-full h-10 px-3 bg-[#1f2937] border border-gray-700 text-white text-[13px] font-mono
+                     rounded-[2px] focus:outline-none focus:border-accent transition-all cursor-pointer">
+        <option value="percentage" {% if intensity_type == 'percentage' %}selected{% endif %}>% of Max</option>
+        <option value="rpe"        {% if intensity_type == 'rpe' %}selected{% endif %}>RPE</option>
+        <option value="freeform"   {% if intensity_type == 'freeform' %}selected{% endif %}>Freeform</option>
+      </select>
+    </div>
+    <div class="intensity-value-wrap {% if intensity_type == 'freeform' %}hidden{% endif %}">
+      <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1.5 font-mono intensity-value-label">
+        {{ '%' if intensity_type != 'rpe' else 'RPE' }}
+      </label>
+      <input type="number" name="intensity_value"
+             value="{{ intensity_value if intensity_value is not none and intensity_type != 'freeform' else '' }}"
+             step="{{ '1' if intensity_type != 'rpe' else '0.5' }}"
+             min="0" max="{{ '100' if intensity_type != 'rpe' else '10' }}"
+             placeholder="{{ '75' if intensity_type != 'rpe' else '8' }}"
+             class="w-full h-10 px-3 bg-[#1f2937] border border-gray-700 text-white text-[13px] font-mono
+                    rounded-[2px] focus:outline-none focus:border-accent transition-all text-center">
+    </div>
+  </div>
+
+  {# Notes #}
+  <div class="mt-3">
+    <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1.5 font-mono">
+      Notes <span class="text-gray-800">optional</span>
+    </label>
+    <input type="text" name="notes" value="{{ notes or '' }}" maxlength="200"
+           placeholder="e.g. Pause at bottom, competition grip"
+           class="w-full h-10 px-3 bg-[#1f2937] border border-gray-700 text-white text-[13px] font-mono
+                  rounded-[2px] focus:outline-none focus:border-accent transition-all placeholder-gray-800">
+  </div>
+
+</div>
+{% endmacro %}
+
+
+{% block content %}
+<div class="px-5 py-8 lg:px-10 lg:py-12 max-w-3xl">
+
+  {# ── Step indicator ───────────────────────────────────────────────────── #}
+  <div class="flex items-center mb-8">
+    {% set step_labels = ['Program', 'Blocks', 'Exercises', 'Review'] %}
+    {% for label in step_labels %}
+    {% set si = loop.index %}
+    <div class="flex items-center">
+      <span class="flex items-center gap-1.5 font-heading font-[700] text-[11px] uppercase tracking-[0.12em]
+                   {% if si == step %}text-accent{% elif si < step %}text-gray-400{% else %}text-gray-700{% endif %}">
+        <span class="w-5 h-5 flex items-center justify-center text-[10px] rounded-[2px] font-mono
+                     {% if si == step %}bg-accent text-white{% elif si < step %}bg-gray-800 text-gray-400{% else %}border border-gray-800 text-gray-700{% endif %}">
+          {{ si }}
+        </span>
+        <span class="hidden sm:inline">{{ label }}</span>
+      </span>
+      {% if not loop.last %}
+      <span class="mx-2 text-gray-800 text-[10px]">——</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── Page title ───────────────────────────────────────────────────────── #}
+  <div class="mb-7 border-b border-gray-800 pb-5">
+    <h1 class="font-heading font-[800] text-[40px] lg:text-[48px] uppercase tracking-[0.08em] text-white leading-none">
+      {% if step == 1 %}New Program
+      {% elif step == 2 %}Set Up Blocks
+      {% elif step == 3 %}{{ current_block.name }} · Day {{ current_day.day_number }}
+      {% else %}Review
+      {% endif %}
+    </h1>
+    {% if step == 3 %}
+    <p class="text-[10px] text-gray-600 font-mono mt-2 uppercase tracking-widest">
+      Block {{ current_block.block_number }} of {{ program.blocks | length }}
+      · Day {{ current_day.day_number }} of {{ current_block.training_days | length }}
+    </p>
+    {% endif %}
+  </div>
+
+
+  {# ════════════════════════════════════════════════════════════════════════
+     STEP 1 — Program name, description, block count
+     ════════════════════════════════════════════════════════════════════════ #}
+  {% if step == 1 %}
+  <div class="bg-[#1f2937] border border-gray-700/50 p-6">
+    <form method="post" action="/programs/new" class="space-y-5">
+
+      <div>
+        <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">
+          Program Name *
+        </label>
+        <input type="text" name="name" required maxlength="120"
+               placeholder="e.g. 16-Week Powerbuilding Block"
+               class="w-full h-11 px-3 bg-[#111827] border border-gray-700 text-white text-sm font-mono
+                      rounded-[2px] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30
+                      transition-all placeholder-gray-700">
+      </div>
+
+      <div>
+        <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">
+          Description <span class="text-gray-700">optional</span>
+        </label>
+        <textarea name="description" rows="3"
+                  placeholder="Brief overview of the program…"
+                  class="w-full px-3 py-2.5 bg-[#111827] border border-gray-700 text-white text-sm font-mono
+                         rounded-[2px] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30
+                         transition-all placeholder-gray-700 resize-none"></textarea>
+      </div>
+
+      <div>
+        <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">
+          Number of Blocks *
+        </label>
+        <p class="text-[11px] text-gray-600 font-mono mb-3">
+          A block is a training phase (e.g. hypertrophy, strength, peaking). Most programs have 2–4 blocks.
+        </p>
+        <input type="number" name="num_blocks" required min="1" max="20" value="4"
+               class="w-28 h-11 px-3 bg-[#111827] border border-gray-700 text-white text-sm font-mono
+                      rounded-[2px] focus:outline-none focus:border-accent transition-all text-center">
+      </div>
+
+      <div class="pt-2 flex items-center gap-4">
+        <button type="submit"
+                class="h-12 px-8 bg-accent hover:bg-[#c44e00] text-white font-heading font-[700]
+                       text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+          Next: Set Up Blocks →
+        </button>
+        <a href="/programs"
+           class="text-[11px] font-mono text-gray-600 hover:text-gray-400 transition-colors uppercase tracking-wider">
+          Cancel
+        </a>
+      </div>
+
+    </form>
+  </div>
+
+
+  {# ════════════════════════════════════════════════════════════════════════
+     STEP 2 — Name blocks + set day counts
+     ════════════════════════════════════════════════════════════════════════ #}
+  {% elif step == 2 %}
+  <div class="bg-[#1f2937] border border-gray-700/50 p-6">
+    <p class="text-[11px] text-gray-600 font-mono mb-6">
+      Name each training block and set how many days it contains.
+    </p>
+
+    <form method="post" action="/programs/{{ program.id }}/blocks" class="space-y-4">
+      {% for block in program.blocks | sort(attribute='block_number') %}
+      <div class="bg-[#111827] border border-gray-700/40 p-4 rounded-[2px]">
+        <p class="text-[10px] uppercase tracking-[0.2em] text-gray-600 font-mono mb-3">
+          Block {{ block.block_number }}
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-[1fr_100px] gap-3">
+          <div>
+            <label class="block text-[9px] uppercase tracking-[0.15em] text-gray-600 mb-1.5 font-mono">
+              Block Name
+            </label>
+            <input type="text" name="block_name_{{ block.id }}" value="{{ block.name }}" maxlength="100"
+                   class="w-full h-10 px-3 bg-[#1f2937] border border-gray-700 text-white text-sm font-mono
+                          rounded-[2px] focus:outline-none focus:border-accent transition-all">
+          </div>
+          <div>
+            <label class="block text-[9px] uppercase tracking-[0.15em] text-gray-600 mb-1.5 font-mono">
+              Days
+            </label>
+            <input type="number" name="num_days_{{ block.id }}"
+                   value="{{ block.training_days | length or 4 }}"
+                   min="1" max="14"
+                   class="w-full h-10 px-3 bg-[#1f2937] border border-gray-700 text-white text-sm font-mono
+                          rounded-[2px] focus:outline-none focus:border-accent transition-all text-center">
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <div class="pt-2 flex items-center gap-4">
+        <button type="submit"
+                class="h-12 px-8 bg-accent hover:bg-[#c44e00] text-white font-heading font-[700]
+                       text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+          Next: Add Exercises →
+        </button>
+        <a href="/programs"
+           class="text-[11px] font-mono text-gray-600 hover:text-gray-400 transition-colors uppercase tracking-wider">
+          Save & Exit
+        </a>
+      </div>
+    </form>
+  </div>
+
+
+  {# ════════════════════════════════════════════════════════════════════════
+     STEP 3 — Exercises per day
+     ════════════════════════════════════════════════════════════════════════ #}
+  {% elif step == 3 %}
+
+  {# Day nav dots #}
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-2 mb-5">
+    {% for bnum, dnum in all_day_coords %}
+    {% set is_cur = (bnum == current_block.block_number and dnum == current_day.day_number) %}
+    <a href="/programs/{{ program.id }}/days?block={{ bnum }}&day={{ dnum }}"
+       class="flex items-center gap-1 font-mono text-[9px] uppercase tracking-widest transition-colors
+              {% if is_cur %}text-accent{% else %}text-gray-700 hover:text-gray-400{% endif %}">
+      <span class="w-2 h-2 rounded-full {% if is_cur %}bg-accent{% else %}bg-gray-800{% endif %}"></span>
+      B{{ bnum }}D{{ dnum }}
+    </a>
+    {% if not loop.last %}<span class="text-gray-800 text-[8px]">·</span>{% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-accent">
+    <form method="post" action="/programs/{{ program.id }}/days" id="day-form">
+      <input type="hidden" name="day_id" value="{{ current_day.id }}">
+      <input type="hidden" id="nav-block" name="next_block"
+             value="{{ next_nav[0] if next_nav else current_block.block_number }}">
+      <input type="hidden" id="nav-day" name="next_day"
+             value="{{ next_nav[1] if next_nav else current_day.day_number }}">
+      <input type="hidden" id="go-review-flag" name="go_review" value="">
+
+      <div class="p-5">
+        {# Exercise rows #}
+        <div id="exercise-rows" class="space-y-3 mb-4">
+          {% if existing_rows %}
+            {% for row in existing_rows %}
+            {{ exercise_row(exercises,
+                            row.exercise.id,
+                            row.count,
+                            row.reps,
+                            row.intensity_type.value,
+                            row.intensity_value,
+                            row.notes or '') }}
+            {% endfor %}
+          {% else %}
+            {{ exercise_row(exercises) }}
+          {% endif %}
+        </div>
+
+        {# Template for JS to clone — Jinja2 renders it server-side #}
+        <template id="exercise-row-tpl">
+          {{ exercise_row(exercises) }}
+        </template>
+
+        {# Add exercise button #}
+        <button type="button" onclick="addExerciseRow()"
+                class="w-full h-10 flex items-center justify-center gap-2
+                       border border-dashed border-gray-700 hover:border-gray-500
+                       text-gray-600 hover:text-gray-400
+                       text-[11px] uppercase tracking-[0.2em] font-heading font-[700]
+                       transition-colors rounded-[2px] mb-6">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+          </svg>
+          Add Exercise
+        </button>
+
+        {# Navigation buttons #}
+        <div class="flex flex-wrap gap-3">
+          {% if prev_nav %}
+          <button type="button" onclick="navigateTo({{ prev_nav[0] }}, {{ prev_nav[1] }})"
+                  class="h-12 px-5 flex items-center gap-2
+                         bg-transparent hover:bg-gray-700/50 text-gray-500 hover:text-gray-300
+                         font-heading font-[700] text-[11px] uppercase tracking-[0.18em]
+                         transition-colors rounded-[2px] border border-gray-700">
+            ← Back
+          </button>
+          {% endif %}
+
+          <div class="flex-1 flex flex-wrap gap-3 justify-end">
+            <button type="button" onclick="finishAndReview()"
+                    class="h-12 px-5 flex items-center
+                           bg-transparent hover:bg-gray-700/50 text-gray-500 hover:text-gray-300
+                           font-heading font-[700] text-[11px] uppercase tracking-[0.18em]
+                           transition-colors rounded-[2px] border border-gray-700">
+              Finish &amp; Review
+            </button>
+
+            {% if next_nav %}
+            <button type="submit"
+                    class="h-12 px-7 flex items-center
+                           bg-accent hover:bg-[#c44e00] text-white
+                           font-heading font-[700] text-[12px] uppercase tracking-[0.2em]
+                           transition-colors rounded-[2px]">
+              Next Day →
+            </button>
+            {% else %}
+            {# Last day — primary action is Review #}
+            <button type="button" onclick="finishAndReview()"
+                    class="h-12 px-7 flex items-center gap-2
+                           bg-accent hover:bg-[#c44e00] text-white
+                           font-heading font-[700] text-[12px] uppercase tracking-[0.2em]
+                           transition-colors rounded-[2px]">
+              Finish &amp; Review →
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+
+  {# ════════════════════════════════════════════════════════════════════════
+     STEP 4 — Review & confirm
+     ════════════════════════════════════════════════════════════════════════ #}
+  {% elif step == 4 %}
+
+  {% if program.is_draft %}
+  <div class="bg-yellow-900/10 border border-yellow-800/30 px-5 py-3 mb-5 flex items-center gap-3">
+    <svg class="w-4 h-4 text-yellow-700 flex-shrink-0" fill="none" stroke="currentColor"
+         viewBox="0 0 24 24" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+            d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+    </svg>
+    <p class="text-[11px] font-mono text-yellow-700">
+      Draft — review your program below, then confirm to activate it.
+    </p>
+  </div>
+  {% endif %}
+
+  {# Program header card #}
+  <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-accent p-5 mb-5">
+    <h2 class="font-heading font-[700] text-[22px] uppercase tracking-[0.1em] text-white">
+      {{ program.name }}
+    </h2>
+    {% if program.description %}
+    <p class="text-[12px] text-gray-500 font-mono mt-2">{{ program.description }}</p>
+    {% endif %}
+    <div class="flex items-center gap-4 mt-3">
+      <span class="text-[10px] text-gray-600 font-mono">
+        {{ review_data | length }} block{{ 's' if review_data | length != 1 else '' }}
+      </span>
+      {%- set ns = namespace(total_days=0) %}
+      {%- for bd in review_data %}{% set ns.total_days = ns.total_days + (bd.days | length) %}{% endfor %}
+      <span class="text-[10px] text-gray-600 font-mono">
+        {{ ns.total_days }} day{{ 's' if ns.total_days != 1 else '' }}
+      </span>
+    </div>
+  </div>
+
+  {# Block tree #}
+  {% for bd in review_data %}
+  <div class="mb-4">
+    {# Block header #}
+    <div class="bg-[#1f2937] border border-gray-700/50 px-5 py-3 flex items-center justify-between">
+      <h3 class="font-heading font-[700] text-[13px] uppercase tracking-[0.2em] text-white">
+        Block {{ bd.block.block_number }} — {{ bd.block.name }}
+      </h3>
+      <span class="text-[10px] text-gray-600 font-mono">
+        {{ bd.days | length }} day{{ 's' if bd.days | length != 1 else '' }}
+      </span>
+    </div>
+
+    {# Days #}
+    {% for dd in bd.days %}
+    <div class="border border-gray-800 border-t-0 px-5 py-4
+                {% if not loop.last %}border-b-gray-800{% endif %}">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[10px] uppercase tracking-[0.2em] text-gray-600 font-mono">
+          Day {{ dd.day.day_number }}
+        </p>
+        <a href="/programs/{{ program.id }}/days?block={{ bd.block.block_number }}&day={{ dd.day.day_number }}"
+           class="text-[10px] font-mono text-accent hover:text-[#c44e00] transition-colors uppercase tracking-wider">
+          Edit
+        </a>
+      </div>
+
+      {% if dd.rows %}
+      <div class="space-y-1.5">
+        {% for row in dd.rows %}
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[12px] font-mono">
+          <span class="text-gray-200">{{ row.exercise.name }}</span>
+          <span class="text-gray-600">{{ row.count }}×{{ row.reps }}</span>
+          {% if row.intensity_type.value == 'percentage' and row.intensity_value is not none %}
+          <span class="text-gray-600">@ {{ row.intensity_value | int }}%</span>
+          {% elif row.intensity_type.value == 'rpe' and row.intensity_value is not none %}
+          <span class="text-gray-600">RPE {{ row.intensity_value }}</span>
+          {% endif %}
+          {% if row.notes %}
+          <span class="text-gray-700 text-[11px]">— {{ row.notes }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-[11px] text-gray-700 font-mono italic">No exercises planned.</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  {# Action buttons #}
+  <div class="flex flex-wrap items-center gap-3 mt-6">
+    {% if program.is_draft %}
+    <form action="/programs/{{ program.id }}/confirm" method="post">
+      <button type="submit"
+              class="h-12 px-8 bg-accent hover:bg-[#c44e00] text-white font-heading font-[700]
+                     text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+        Confirm Program
+      </button>
+    </form>
+    {% else %}
+    <a href="/calendar/start/{{ program.id }}"
+       class="h-12 px-8 flex items-center bg-accent hover:bg-[#c44e00] text-white
+              font-heading font-[700] text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+      Start Program →
+    </a>
+    <a href="/programs"
+       class="h-12 px-6 flex items-center bg-transparent hover:bg-gray-700/50 text-gray-400
+              font-heading font-[700] text-[11px] uppercase tracking-[0.18em] transition-colors rounded-[2px] border border-gray-600">
+      All Programs
+    </a>
+    {% endif %}
+
+    {% if review_data %}
+    <a href="/programs/{{ program.id }}/days?block={{ review_data[0].block.block_number }}&day=1"
+       class="h-12 px-6 flex items-center
+              bg-transparent hover:bg-gray-700/50 text-gray-400
+              font-heading font-[700] text-[11px] uppercase tracking-[0.18em]
+              transition-colors rounded-[2px] border border-gray-600">
+      Edit Exercises
+    </a>
+    {% endif %}
+
+    {% if program.is_draft %}
+    <a href="/programs"
+       class="ml-auto text-[10px] font-mono text-gray-700 hover:text-gray-500 transition-colors uppercase tracking-wider">
+      Save as Draft
+    </a>
+    {% endif %}
+  </div>
+
+  {% endif %}{# end step checks #}
+
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+{% if step == 3 %}
+<script>
+// ── Add exercise row (clone <template>) ──────────────────────────────────
+function addExerciseRow() {
+  const tpl = document.getElementById('exercise-row-tpl');
+  const clone = document.importNode(tpl.content, true);
+
+  // Reset intensity visibility for the freshly cloned row
+  clone.querySelectorAll('[name="intensity_type"]').forEach(sel => {
+    updateIntensity(sel);
+  });
+
+  document.getElementById('exercise-rows').appendChild(clone);
+}
+
+// ── Remove a row ─────────────────────────────────────────────────────────
+function removeRow(btn) {
+  const row = btn.closest('.exercise-row');
+  if (document.querySelectorAll('.exercise-row').length <= 1) {
+    // Keep at least one row — just clear the select
+    row.querySelector('[name="exercise_id"]').value = '';
+    return;
+  }
+  row.remove();
+}
+
+// ── Show/hide intensity value field based on type ────────────────────────
+function updateIntensity(sel) {
+  const row  = sel.closest('.exercise-row');
+  const wrap = row.querySelector('.intensity-value-wrap');
+  const lbl  = row.querySelector('.intensity-value-label');
+  const inp  = row.querySelector('[name="intensity_value"]');
+  if (!wrap) return;
+
+  if (sel.value === 'freeform') {
+    wrap.classList.add('hidden');
+    if (inp) inp.value = '';
+  } else {
+    wrap.classList.remove('hidden');
+    const isPct = sel.value === 'percentage';
+    if (lbl) lbl.textContent = isPct ? '%' : 'RPE';
+    if (inp) {
+      inp.max         = isPct ? '100' : '10';
+      inp.step        = isPct ? '1'   : '0.5';
+      inp.placeholder = isPct ? '75'  : '8';
+    }
+  }
+}
+
+// ── Navigate to a specific block/day (saves current day first) ───────────
+function navigateTo(block, day) {
+  document.getElementById('nav-block').value = block;
+  document.getElementById('nav-day').value   = day;
+  document.getElementById('go-review-flag').value = '';
+  document.getElementById('day-form').submit();
+}
+
+// ── Save and go to review ─────────────────────────────────────────────────
+function finishAndReview() {
+  document.getElementById('go-review-flag').value = '1';
+  document.getElementById('day-form').submit();
+}
+
+// ── Boot: initialise all intensity fields on page load ───────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[name="intensity_type"]').forEach(sel => {
+    updateIntensity(sel);
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

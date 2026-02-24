@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Exercise Library — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="px-5 py-8 lg:px-10 lg:py-12 max-w-3xl">
+
+  {# ── Page header ───────────────────────────────────────────────────────── #}
+  <div class="mb-8 border-b border-gray-800 pb-6">
+    <div class="flex items-end justify-between gap-4">
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-2 font-mono">Library</p>
+        <h1 class="font-heading font-[800] text-[48px] lg:text-[56px] uppercase tracking-[0.08em] text-white leading-none">
+          Exercises
+        </h1>
+        <p class="text-[10px] text-gray-700 font-mono mt-2">{{ total }} exercise{{ 's' if total != 1 else '' }}</p>
+      </div>
+      <button type="button" id="toggle-form-btn"
+              onclick="toggleNewForm()"
+              class="h-12 px-6 flex items-center gap-2 bg-accent hover:bg-[#c44e00] text-white
+                     font-heading font-[700] text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px] flex-shrink-0">
+        <svg id="form-icon-plus" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        <svg id="form-icon-x" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+        New
+      </button>
+    </div>
+  </div>
+
+  {# ── Error banner ──────────────────────────────────────────────────────── #}
+  {% if error %}
+  <div class="mb-5 px-4 py-3 bg-red-950/60 border border-red-800 text-red-300 text-[11px] font-mono
+              uppercase tracking-widest rounded-[2px] flex items-center gap-2">
+    <svg class="w-4 h-4 flex-shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+    </svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  {# ── New exercise form (collapsed by default) ──────────────────────────── #}
+  <div id="new-exercise-form" class="hidden mb-6">
+    <div class="bg-[#1f2937] border border-gray-700/50 border-t-[3px] border-t-accent p-5">
+      <p class="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-mono mb-4">New Custom Exercise</p>
+      <form action="/exercises/new" method="post">
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+
+          {# Name #}
+          <div class="sm:col-span-3">
+            <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">
+              Name *
+            </label>
+            <input type="text" name="name" placeholder="e.g. Cable Face Pull"
+                   required autocomplete="off"
+                   class="w-full h-11 px-3 bg-[#111827] border border-gray-700 text-white text-sm font-mono
+                          rounded-[2px] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30
+                          transition-all placeholder-gray-700">
+          </div>
+
+          {# Category #}
+          <div>
+            <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">
+              Category
+            </label>
+            <select name="category"
+                    class="w-full h-11 px-3 bg-[#111827] border border-gray-700 text-white text-sm font-mono
+                           rounded-[2px] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30
+                           transition-all">
+              {% for cat in category_options %}
+              <option value="{{ cat }}">{{ cat.replace('_', ' ').title() }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          {# Muscle group #}
+          <div class="sm:col-span-2">
+            <label class="block text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-2 font-mono">
+              Muscle Group
+            </label>
+            <select name="muscle_group"
+                    class="w-full h-11 px-3 bg-[#111827] border border-gray-700 text-white text-sm font-mono
+                           rounded-[2px] focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30
+                           transition-all">
+              <option value="">— None —</option>
+              {% for mg in muscle_group_options %}
+              <option value="{{ mg }}">{{ mg.capitalize() }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button type="submit"
+                  class="h-11 px-7 bg-accent hover:bg-[#c44e00] text-white font-heading font-[700]
+                         text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+            Add Exercise
+          </button>
+          <button type="button" onclick="toggleNewForm()"
+                  class="h-11 px-5 text-gray-500 hover:text-gray-300 font-heading font-[700]
+                         text-[11px] uppercase tracking-[0.18em] transition-colors border border-gray-700 rounded-[2px]">
+            Cancel
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  {# ── Exercise groups ───────────────────────────────────────────────────── #}
+  <div class="space-y-8">
+
+    {% for group_name, exercises in groups %}
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-3 font-mono">
+        {{ group_name.capitalize() }}
+        <span class="text-gray-800">· {{ exercises | length }}</span>
+      </p>
+      <div class="bg-[#1f2937] border border-gray-700/50 divide-y divide-gray-800/50">
+        {% for ex in exercises %}
+        <div class="flex items-center justify-between px-5 py-3 gap-4 group">
+          <div class="min-w-0 flex items-center gap-3">
+            <p class="font-mono text-[13px]
+                      {% if ex.creator_user_id == user.id %}text-white{% else %}text-gray-300{% endif %}
+                      truncate">
+              {{ ex.name }}
+            </p>
+            {# Badges #}
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              {% if ex.category.value == 'main_lift' %}
+              <span class="text-[8px] uppercase tracking-[0.15em] text-accent font-mono
+                           border border-accent/40 px-1.5 py-0.5 rounded-[1px]">
+                Main
+              </span>
+              {% endif %}
+              {% if ex.creator_user_id == user.id %}
+              <span class="text-[8px] uppercase tracking-[0.15em] text-blue-400 font-mono
+                           border border-blue-400/30 px-1.5 py-0.5 rounded-[1px]">
+                Custom
+              </span>
+              {% endif %}
+            </div>
+          </div>
+
+          {# Archive button — only for user's own exercises #}
+          {% if ex.creator_user_id == user.id %}
+          <form action="/exercises/{{ ex.id }}/archive" method="post" class="flex-shrink-0"
+                onsubmit="return confirm('Remove {{ ex.name | e }} from your library?')">
+            <button type="submit"
+                    class="h-7 px-3 opacity-0 group-hover:opacity-100 bg-transparent hover:bg-red-900/20
+                           text-gray-700 hover:text-red-400 font-heading font-[700] text-[9px] uppercase
+                           tracking-[0.15em] transition-all rounded-[2px] border border-transparent
+                           hover:border-red-900/40">
+              Remove
+            </button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {# Ungrouped exercises (no muscle group set) #}
+    {% if ungrouped %}
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-3 font-mono">
+        Other
+        <span class="text-gray-800">· {{ ungrouped | length }}</span>
+      </p>
+      <div class="bg-[#1f2937] border border-gray-700/50 divide-y divide-gray-800/50">
+        {% for ex in ungrouped %}
+        <div class="flex items-center justify-between px-5 py-3 gap-4 group">
+          <div class="min-w-0 flex items-center gap-3">
+            <p class="font-mono text-[13px]
+                      {% if ex.creator_user_id == user.id %}text-white{% else %}text-gray-300{% endif %}
+                      truncate">
+              {{ ex.name }}
+            </p>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              {% if ex.category.value == 'main_lift' %}
+              <span class="text-[8px] uppercase tracking-[0.15em] text-accent font-mono
+                           border border-accent/40 px-1.5 py-0.5 rounded-[1px]">
+                Main
+              </span>
+              {% endif %}
+              {% if ex.creator_user_id == user.id %}
+              <span class="text-[8px] uppercase tracking-[0.15em] text-blue-400 font-mono
+                           border border-blue-400/30 px-1.5 py-0.5 rounded-[1px]">
+                Custom
+              </span>
+              {% endif %}
+            </div>
+          </div>
+          {% if ex.creator_user_id == user.id %}
+          <form action="/exercises/{{ ex.id }}/archive" method="post" class="flex-shrink-0"
+                onsubmit="return confirm('Remove {{ ex.name | e }} from your library?')">
+            <button type="submit"
+                    class="h-7 px-3 opacity-0 group-hover:opacity-100 bg-transparent hover:bg-red-900/20
+                           text-gray-700 hover:text-red-400 font-heading font-[700] text-[9px] uppercase
+                           tracking-[0.15em] transition-all rounded-[2px] border border-transparent
+                           hover:border-red-900/40">
+              Remove
+            </button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>{# /space-y-8 #}
+
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+function toggleNewForm() {
+  const form  = document.getElementById('new-exercise-form');
+  const plus  = document.getElementById('form-icon-plus');
+  const cross = document.getElementById('form-icon-x');
+  const open  = form.classList.toggle('hidden');
+  plus.classList.toggle('hidden', !open);
+  cross.classList.toggle('hidden', open);
+  if (!open) {
+    // focus the name input when opening
+    form.querySelector('input[name="name"]').focus();
+  }
+}
+
+// Auto-open form if there's a validation error (user was trying to add)
+{% if error %}
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('new-exercise-form');
+  if (form.classList.contains('hidden')) toggleNewForm();
+});
+{% endif %}
+</script>
+{% endblock %}

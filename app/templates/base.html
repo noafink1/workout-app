@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}PowerBuilding{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            heading: ['"Barlow Condensed"', 'sans-serif'],
+            mono:    ['"DM Mono"', 'monospace'],
+          },
+          colors: {
+            accent: '#e85d04',
+          },
+        }
+      }
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Default body font */
+    body { font-family: 'DM Mono', monospace; }
+
+    /* Subtle grid texture on bg */
+    .bg-grid {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+      background-size: 44px 44px;
+    }
+
+    /* Accent top stripe — appears on every page as a design marker */
+    .top-stripe::before {
+      content: '';
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #e85d04;
+      z-index: 100;
+    }
+  </style>
+</head>
+
+<body class="bg-[#111827] text-gray-200 h-full bg-grid top-stripe">
+
+  {# ── Desktop sidebar (lg+) ────────────────────────────────────────────── #}
+  {% if not request.url.path.startswith('/auth') %}
+  <nav class="hidden lg:flex flex-col fixed inset-y-0 left-0 w-60 bg-[#0b1120] border-r border-gray-800/60 z-50">
+    {# Left accent stripe #}
+    <div class="absolute left-0 top-0 bottom-0 w-[3px] bg-accent"></div>
+
+    {# Logo #}
+    <div class="px-7 pt-8 pb-7 border-b border-gray-800/60">
+      <a href="/" class="block">
+        <span class="font-heading font-[800] text-[22px] uppercase tracking-[0.18em] text-white leading-none">
+          POWER<span class="text-accent">BUILDING</span>
+        </span>
+        <span class="block text-[10px] uppercase tracking-[0.25em] text-gray-600 mt-1 font-mono">Training Log</span>
+      </a>
+    </div>
+
+    {# Nav links #}
+    <div class="flex-1 py-6 px-3 space-y-[2px]">
+      {% set nav_items = [
+        ('/',           'Home',      'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'),
+        ('/programs',   'Programs',  'M4 6h16M4 10h16M4 14h16M4 18h7'),
+        ('/exercises',  'Exercises', 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'),
+        ('/prs',        'PRs',       'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'),
+        ('/calendar',   'Calendar',  'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'),
+        ('/progress',   'Progress',  'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'),
+      ] %}
+      {% for href, label, path_d in nav_items %}
+        {% if href == '/' %}
+          {% set is_active = request.url.path == '/' %}
+        {% else %}
+          {% set is_active = request.url.path.startswith(href) %}
+        {% endif %}
+        <a href="{{ href }}"
+           class="flex items-center gap-3 px-4 py-[10px] rounded-[2px] text-[11px] uppercase tracking-[0.18em] font-heading font-[700] transition-all duration-150 group
+             {% if is_active %}bg-accent text-white{% else %}text-gray-500 hover:text-white hover:bg-gray-800/70{% endif %}">
+          <svg class="w-[18px] h-[18px] flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="{{ path_d }}"/>
+          </svg>
+          {{ label }}
+        </a>
+      {% endfor %}
+    </div>
+
+    {# Version tag at bottom #}
+    <div class="px-7 py-5 border-t border-gray-800/60">
+      <span class="text-[10px] text-gray-700 uppercase tracking-widest font-mono">v1.0.0</span>
+    </div>
+  </nav>
+  {% endif %}
+
+  {# ── Main content wrapper ─────────────────────────────────────────────── #}
+  <div class="{% if not request.url.path.startswith('/auth') %}lg:ml-60{% endif %} min-h-screen pb-24 lg:pb-0 pt-[2px]">
+
+    {# Flash banners #}
+    {% if error %}
+    <div class="mx-4 mt-5 px-4 py-3 bg-red-950/60 border border-red-800 text-red-300 text-[11px] font-mono uppercase tracking-widest rounded-[2px] flex items-center gap-2">
+      <svg class="w-4 h-4 flex-shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      {{ error }}
+    </div>
+    {% endif %}
+    {% if success %}
+    <div class="mx-4 mt-5 px-4 py-3 bg-green-950/60 border border-green-800 text-green-300 text-[11px] font-mono uppercase tracking-widest rounded-[2px] flex items-center gap-2">
+      <svg class="w-4 h-4 flex-shrink-0 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+      {{ success }}
+    </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </div>
+
+  {# ── Mobile bottom nav (<lg) ──────────────────────────────────────────── #}
+  {% if not request.url.path.startswith('/auth') %}
+  <nav class="lg:hidden fixed bottom-0 inset-x-0 bg-[#0b1120] border-t border-gray-800/70 z-50">
+    <div class="flex h-[60px]">
+      {% set mobile_nav = [
+        ('/',          'Home',      'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'),
+        ('/programs',  'Programs',  'M4 6h16M4 10h16M4 14h16M4 18h7'),
+        ('/exercises', 'Exercises', 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'),
+        ('/prs',       'PRs',       'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'),
+        ('/calendar',  'Calendar',  'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'),
+        ('/progress',  'Progress',  'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'),
+      ] %}
+      {% for href, label, path_d in mobile_nav %}
+        {% if href == '/' %}
+          {% set is_active = request.url.path == '/' %}
+        {% else %}
+          {% set is_active = request.url.path.startswith(href) %}
+        {% endif %}
+        <a href="{{ href }}"
+           class="flex-1 flex flex-col items-center justify-center gap-[3px] transition-colors
+             {% if is_active %}text-accent{% else %}text-gray-600 hover:text-gray-400{% endif %}">
+          <svg class="w-[19px] h-[19px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="{{ path_d }}"/>
+          </svg>
+          <span class="text-[9px] uppercase tracking-[0.15em] font-heading font-[700]">{{ label }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </nav>
+  {% endif %}
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

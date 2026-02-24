@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block title %}{{ workout.training_day.name }} — PowerBuilding{% endblock %}
+
+{% block content %}
+<form action="/workouts/{{ workout.id }}/complete" method="POST" id="workout-form">
+<div class="px-4 py-6 lg:px-10 lg:py-10 max-w-2xl space-y-3">
+
+  {# ── Header ──────────────────────────────────────────────────────────── #}
+  <div class="border-b border-gray-800 pb-5 mb-5">
+    <p class="text-[10px] uppercase tracking-[0.25em] text-gray-600 font-mono mb-1">
+      {{ workout.program_run.program.name }}
+    </p>
+    <h1 class="font-heading font-[800] text-[32px] lg:text-[42px] uppercase tracking-[0.06em] text-white leading-tight">
+      {{ workout.block.name }}
+    </h1>
+    <p class="font-heading font-[600] text-[18px] lg:text-[22px] uppercase tracking-[0.1em] text-gray-400 mt-[2px]">
+      {{ workout.training_day.name }}
+    </p>
+    <div class="flex items-center gap-3 mt-3 flex-wrap">
+      <span class="text-[11px] font-mono text-gray-600">
+        {{ workout.scheduled_date.strftime('%A, %d %b %Y') }}
+      </span>
+      {% if already_completed %}
+      <span class="px-2 py-[2px] bg-green-900/40 border border-green-700/70 text-green-400
+                   text-[9px] uppercase tracking-[0.2em] font-mono rounded-[2px]">
+        Completed
+      </span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Exercise groups ─────────────────────────────────────────────────── #}
+  {% for group in exercise_groups %}
+  <div id="group-{{ loop.index0 }}"
+       class="bg-[#1f2937] border border-gray-700/50 overflow-hidden
+              {% if group.exercise.category == 'main_lift' %}border-l-[3px] border-l-accent{% else %}border-l-[3px] border-l-gray-600{% endif %}">
+
+    {# Sub hidden inputs — one per set in this group #}
+    {% for ps in group.sets %}
+    <input type="hidden" name="sub_{{ ps.id }}" value="" id="sub-val-{{ ps.id }}">
+    {% endfor %}
+
+    {# ── Exercise header ── #}
+    <div class="px-4 py-3 flex items-start justify-between gap-3 border-b border-gray-800/80">
+      <div class="flex-1 min-w-0">
+        <h3 id="exname-{{ loop.index0 }}"
+            class="font-heading font-[700] text-[17px] uppercase tracking-[0.12em] text-white leading-none">
+          {{ group.exercise.name }}
+        </h3>
+
+        {% if group.missing_1rm %}
+        <a href="/prs"
+           class="inline-flex items-center gap-1 mt-2 px-2 py-[3px] bg-orange-900/30 border
+                  border-orange-700/50 text-orange-400 text-[9px] uppercase tracking-[0.18em]
+                  font-mono rounded-[2px] hover:bg-orange-900/50 transition-colors">
+          <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          Set 1RM first
+        </a>
+        {% elif group.intensity_type == 'percentage' and group.one_rm_used %}
+        <p class="text-[10px] font-mono text-gray-600 mt-[5px]">
+          {{ group.intensity_value | int }}% of {{ "%.4g" % group.one_rm_used }}kg
+          <span class="text-gray-500 mx-1">&rarr;</span>
+          <span class="text-gray-400">{{ "%.4g" % group.calculated_weight }}kg</span>
+        </p>
+        {% elif group.intensity_type == 'rpe' and group.intensity_value %}
+        <p class="text-[10px] font-mono text-gray-600 mt-[5px]">RPE {{ group.intensity_value | int }}</p>
+        {% endif %}
+      </div>
+
+      {% if not already_completed %}
+      <button type="button"
+              onclick="openSubModal({{ loop.index0 }}, [{% for ps in group.sets %}{{ ps.id }}{% if not loop.last %},{% endif %}{% endfor %}])"
+              class="flex-shrink-0 flex items-center gap-[5px] px-2 py-[5px] text-[9px] uppercase
+                     tracking-[0.18em] text-gray-600 hover:text-gray-300 font-mono border border-gray-700/80
+                     hover:border-gray-500 transition-colors rounded-[2px] mt-[2px]">
+        <svg class="w-[11px] h-[11px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 3M21 7.5H7.5"/>
+        </svg>
+        Sub
+      </button>
+      {% endif %}
+    </div>
+
+    {# ── Set rows ── #}
+    {% for ps in group.sets %}
+    <div class="{% if not loop.last %}border-b border-gray-800/50{% endif %}">
+      <input type="hidden" name="planned_set_id" value="{{ ps.id }}">
+      <input type="hidden" name="actual_reps_{{ ps.id }}" value="{{ ps.reps }}">
+
+      <div class="flex items-center gap-3 px-4 min-h-[56px] py-2">
+
+        {# Set label #}
+        <span class="font-mono text-[10px] uppercase tracking-widest text-gray-600 w-9 flex-shrink-0">
+          S{{ ps.set_number }}
+        </span>
+
+        {# Prescription #}
+        <div class="flex-1 min-w-0">
+          {% if group.intensity_type == 'percentage' %}
+            <span class="font-heading font-[700] text-[16px] uppercase tracking-[0.1em] text-gray-200">
+              {{ ps.reps }}&nbsp;REP{{ 's' if ps.reps != 1 else '' }}
+            </span>
+          {% elif group.intensity_type == 'rpe' %}
+            <span class="font-heading font-[700] text-[15px] uppercase tracking-[0.08em] text-gray-200">
+              {{ ps.reps }}&nbsp;REPS
+            </span>
+            <span class="text-[10px] font-mono text-gray-600 ml-1">@ RPE&nbsp;{{ ps.intensity_value | int }}</span>
+          {% else %}
+            <span class="font-heading font-[700] text-[16px] uppercase tracking-[0.1em] text-gray-200">
+              {{ ps.reps }}&nbsp;REPS
+            </span>
+            {% if loop.first and group.last_weight %}
+            <p class="text-[9px] font-mono text-gray-700 mt-[2px]">last: {{ "%.4g" % group.last_weight }}kg</p>
+            {% endif %}
+          {% endif %}
+        </div>
+
+        {# Weight input — the hero element #}
+        <div class="flex items-center gap-[6px] flex-shrink-0">
+          {% if not already_completed %}
+          <input
+            type="number"
+            name="weight_kg_{{ ps.id }}"
+            step="1.25"
+            min="0"
+            max="500"
+            {% if group.intensity_type == 'percentage' and group.calculated_weight is not none %}
+              value="{{ "%.4g" % group.calculated_weight }}"
+            {% elif group.last_weight is not none %}
+              value="{{ "%.4g" % group.last_weight }}"
+            {% endif %}
+            placeholder="—"
+            class="w-[76px] h-12 text-right px-2 bg-[#111827] border border-gray-700
+                   text-white font-mono text-[18px] font-[500] rounded-[2px]
+                   focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20
+                   transition-all
+                   [appearance:textfield]
+                   [&::-webkit-outer-spin-button]:appearance-none
+                   [&::-webkit-inner-spin-button]:appearance-none"
+          >
+          {% else %}
+          <span class="w-[76px] h-12 flex items-center justify-end font-mono text-[18px] text-gray-600 px-2">—</span>
+          {% endif %}
+          <span class="text-[11px] font-mono text-gray-600 w-5 text-left">kg</span>
+        </div>
+
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  {# ── Session notes ────────────────────────────────────────────────────── #}
+  <div class="bg-[#1f2937] border border-gray-700/50 p-4">
+    <label class="flex items-center justify-between mb-3">
+      <span class="text-[10px] uppercase tracking-[0.25em] text-gray-600 font-mono">Session Notes</span>
+      <span class="text-[10px] font-mono text-gray-700" id="notes-counter">0 / 500</span>
+    </label>
+    <textarea
+      name="session_notes"
+      id="session-notes"
+      rows="3"
+      maxlength="500"
+      placeholder="How did it feel? Anything to note... (optional)"
+      {% if already_completed %}readonly{% endif %}
+      class="w-full bg-[#111827] border border-gray-700 text-gray-300 text-[13px] font-mono
+             rounded-[2px] px-3 py-3 resize-none leading-relaxed
+             focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20
+             transition-all placeholder-gray-700 read-only:opacity-50"
+    ></textarea>
+  </div>
+
+  {# ── Complete / Already completed block ───────────────────────────────── #}
+  {% if already_completed %}
+  <div class="bg-green-950/30 border border-green-800/60 p-5 text-center">
+    <p class="font-heading font-[800] text-[20px] uppercase tracking-[0.18em] text-green-400">
+      Workout Complete
+    </p>
+    <p class="text-[11px] font-mono text-green-800 mt-1">
+      Logged {{ workout.completed_at.strftime('%d %b %Y at %H:%M') }}
+    </p>
+    <a href="/" class="inline-block mt-4 text-[11px] uppercase tracking-widest font-mono
+                       text-gray-600 hover:text-gray-400 transition-colors">
+      Back to home
+    </a>
+  </div>
+  {% else %}
+  <button
+    type="submit"
+    class="w-full h-14 bg-accent hover:bg-[#c44e00] text-white
+           font-heading font-[800] text-[15px] uppercase tracking-[0.22em]
+           transition-colors rounded-[2px] flex items-center justify-center gap-2"
+  >
+    <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+    </svg>
+    Complete Workout
+  </button>
+  {% endif %}
+
+</div>
+</form>
+
+{# ── Substitution modal — outside form, JS updates hidden inputs inside form ── #}
+<div id="sub-modal"
+     class="hidden fixed inset-0 z-50 flex items-end lg:items-center justify-center">
+  {# Backdrop #}
+  <div class="absolute inset-0 bg-black/75 backdrop-blur-[2px]" onclick="closeSubModal()"></div>
+
+  {# Sheet / card #}
+  <div class="relative w-full max-w-md bg-[#1f2937] border border-gray-700
+              rounded-t-[8px] lg:rounded-[4px] shadow-2xl z-10
+              flex flex-col" style="max-height: 75vh;">
+
+    {# Modal header #}
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800 flex-shrink-0">
+      <h3 class="font-heading font-[700] text-[14px] uppercase tracking-[0.2em] text-white">
+        Substitute Exercise
+      </h3>
+      <button type="button" onclick="closeSubModal()"
+              class="p-1 text-gray-500 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    {# Search #}
+    <div class="px-4 py-3 border-b border-gray-800 flex-shrink-0">
+      <input
+        type="text"
+        id="sub-search"
+        placeholder="Search..."
+        autocomplete="off"
+        oninput="filterExercises(this.value)"
+        class="w-full h-10 px-3 bg-[#111827] border border-gray-700 text-white text-sm font-mono
+               rounded-[2px] focus:outline-none focus:border-accent transition-all placeholder-gray-700"
+      >
+    </div>
+
+    {# Exercise list #}
+    <div class="overflow-y-auto flex-1" id="sub-list">
+      <p class="px-5 pt-3 pb-1 text-[9px] uppercase tracking-[0.2em] text-gray-600 font-mono">
+        Main Lifts
+      </p>
+      {% for ex in all_exercises %}
+      {% if ex.category == 'main_lift' %}
+      <button type="button"
+              class="sub-item w-full text-left px-5 py-3 text-[13px] font-mono text-gray-300
+                     hover:bg-gray-700/50 hover:text-white transition-colors"
+              data-name="{{ ex.name | lower }}"
+              onclick="selectSubstitute({{ ex.id }}, '{{ ex.name }}')">
+        {{ ex.name }}
+      </button>
+      {% endif %}
+      {% endfor %}
+
+      <p class="px-5 pt-4 pb-1 text-[9px] uppercase tracking-[0.2em] text-gray-600 font-mono">
+        Accessories
+      </p>
+      {% for ex in all_exercises %}
+      {% if ex.category == 'accessory' %}
+      <button type="button"
+              class="sub-item w-full text-left px-5 py-3 text-[13px] font-mono text-gray-300
+                     hover:bg-gray-700/50 hover:text-white transition-colors"
+              data-name="{{ ex.name | lower }}"
+              onclick="selectSubstitute({{ ex.id }}, '{{ ex.name }}')">
+        {{ ex.name }}
+      </button>
+      {% endif %}
+      {% endfor %}
+      <div class="h-4"></div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+  // ── Substitution modal ───────────────────────────────────────────────────
+  let _activeSetIds   = [];
+  let _activeGroupIdx = null;
+
+  function openSubModal(groupIndex, setIds) {
+    _activeGroupIdx = groupIndex;
+    _activeSetIds   = setIds;
+    document.getElementById('sub-modal').classList.remove('hidden');
+    const s = document.getElementById('sub-search');
+    s.value = '';
+    filterExercises('');
+    setTimeout(() => s.focus(), 80);
+  }
+
+  function closeSubModal() {
+    document.getElementById('sub-modal').classList.add('hidden');
+    _activeSetIds   = [];
+    _activeGroupIdx = null;
+  }
+
+  function selectSubstitute(exerciseId, exerciseName) {
+    // Update hidden inputs for every set in this group
+    _activeSetIds.forEach(psId => {
+      const inp = document.getElementById('sub-val-' + psId);
+      if (inp) inp.value = exerciseId;
+    });
+    // Update the visible exercise name in the card header
+    const nameEl = document.getElementById('exname-' + _activeGroupIdx);
+    if (nameEl) nameEl.textContent = exerciseName + ' (sub)';
+    closeSubModal();
+  }
+
+  function filterExercises(query) {
+    const q = query.toLowerCase().trim();
+    document.querySelectorAll('.sub-item').forEach(btn => {
+      const match = !q || btn.dataset.name.includes(q);
+      btn.style.display = match ? '' : 'none';
+    });
+  }
+
+  // ── Session notes counter ────────────────────────────────────────────────
+  const notesEl   = document.getElementById('session-notes');
+  const counterEl = document.getElementById('notes-counter');
+  if (notesEl && counterEl) {
+    notesEl.addEventListener('input', () => {
+      counterEl.textContent = notesEl.value.length + ' / 500';
+    });
+  }
+
+  // ── Prevent double-submit ────────────────────────────────────────────────
+  document.getElementById('workout-form')?.addEventListener('submit', function() {
+    const btn = this.querySelector('[type="submit"]');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+    }
+  });
+</script>
+{% endblock %}
