@@ -259,6 +259,31 @@
     {% endfor %}
   </div>
 
+  {# ── Empty-block banner (OUTSIDE day-form — nested forms are invalid HTML) ── #}
+  {% if current_block.block_number > 1 and not existing_rows %}
+  <form action="/programs/{{ program.id }}/copy-block1-to-all" method="post"
+        class="bg-blue-950/30 border border-blue-900/40 p-4 mb-4 flex flex-wrap items-center justify-between gap-3">
+    <input type="hidden" name="target_block" value="{{ current_block.block_number }}">
+    <input type="hidden" name="target_day" value="{{ current_day.day_number }}">
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.2em] text-blue-500 font-mono mb-0.5">Empty Block</p>
+      <p class="text-[12px] text-gray-400 font-mono">
+        {{ current_block.name }} has no exercises yet.
+        Copy Block 1's workouts here as a starting point.
+      </p>
+    </div>
+    <button type="submit"
+            class="h-10 px-5 flex items-center gap-2 bg-blue-900/50 hover:bg-blue-900/70 text-blue-300
+                   font-heading font-[700] text-[11px] uppercase tracking-[0.18em] transition-colors rounded-[2px]
+                   border border-blue-700/50 flex-shrink-0">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+      </svg>
+      Copy from Block 1
+    </button>
+  </form>
+  {% endif %}
+
   <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-accent">
     <form method="post" action="/programs/{{ program.id }}/days" id="day-form">
       <input type="hidden" name="day_id" value="{{ current_day.id }}">
@@ -267,8 +292,10 @@
       <input type="hidden" id="nav-day" name="next_day"
              value="{{ next_nav[1] if next_nav else current_day.day_number }}">
       <input type="hidden" id="go-review-flag" name="go_review" value="">
+      <input type="hidden" id="go-copy-all-flag" name="go_copy_all" value="">
 
       <div class="p-5">
+
         {# Exercise rows #}
         <div id="exercise-rows" class="space-y-3 mb-4">
           {% if existing_rows %}
@@ -324,6 +351,20 @@
                            transition-colors rounded-[2px] border border-gray-700">
               Finish &amp; Review
             </button>
+
+            {% if current_block.block_number == 1 and program.blocks | length > 1 %}
+            <button type="button" onclick="saveAndCopyAll()"
+                    class="h-12 px-5 flex items-center gap-2
+                           bg-green-900/30 hover:bg-green-900/50 text-green-400
+                           font-heading font-[700] text-[11px] uppercase tracking-[0.18em]
+                           transition-colors rounded-[2px] border border-green-800/40"
+                    title="Save this day, copy all Block 1 exercises to every other block, then continue to Block 2">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Copy to All Blocks →
+            </button>
+            {% endif %}
 
             {% if next_nav %}
             <button type="submit"
@@ -542,12 +583,21 @@ function navigateTo(block, day) {
   document.getElementById('nav-block').value = block;
   document.getElementById('nav-day').value   = day;
   document.getElementById('go-review-flag').value = '';
+  document.getElementById('go-copy-all-flag').value = '';
   document.getElementById('day-form').submit();
 }
 
 // ── Save and go to review ─────────────────────────────────────────────────
 function finishAndReview() {
   document.getElementById('go-review-flag').value = '1';
+  document.getElementById('go-copy-all-flag').value = '';
+  document.getElementById('day-form').submit();
+}
+
+// ── Save current day then copy Block 1 to all blocks ─────────────────────
+function saveAndCopyAll() {
+  document.getElementById('go-copy-all-flag').value = '1';
+  document.getElementById('go-review-flag').value = '';
   document.getElementById('day-form').submit();
 }
 

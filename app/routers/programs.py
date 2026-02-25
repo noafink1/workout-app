@@ -78,6 +78,35 @@ def _all_exercises(db: Session) -> list[Exercise]:
     )
 
 
+def _copy_block1_to_all(program: Program, db: Session) -> None:
+    """Copy all PlannedSets from Block 1 to every other block, matching days by day_number."""
+    blocks = sorted(program.blocks, key=lambda b: b.block_number)
+    if len(blocks) < 2:
+        return
+
+    source_block = blocks[0]
+    source_days = {d.day_number: d for d in source_block.training_days}
+
+    for target_block in blocks[1:]:
+        for target_day in target_block.training_days:
+            source_day = source_days.get(target_day.day_number)
+            if not source_day or not source_day.planned_sets:
+                continue
+            db.query(PlannedSet).filter(PlannedSet.training_day_id == target_day.id).delete()
+            db.flush()
+            for ps in sorted(source_day.planned_sets, key=lambda s: s.order):
+                db.add(PlannedSet(
+                    training_day_id=target_day.id,
+                    exercise_id=ps.exercise_id,
+                    order=ps.order,
+                    set_number=ps.set_number,
+                    reps=ps.reps,
+                    intensity_type=ps.intensity_type,
+                    intensity_value=ps.intensity_value,
+                    notes=ps.notes,
+                ))
+
+
 def _build_set_display(planned_sets) -> list[dict]:
     """Group consecutive PlannedSets with identical parameters into display rows."""
     groups: list[dict] = []
@@ -325,6 +354,7 @@ async def wizard_step3_save(
     next_block = int(form.get("next_block", 1) or 1)
     next_day = int(form.get("next_day", 1) or 1)
     go_review = form.get("go_review", "") == "1"
+    go_copy_all = form.get("go_copy_all", "") == "1"
 
     training_day = db.query(TrainingDay).filter(TrainingDay.id == day_id).first()
     if not training_day:
@@ -385,10 +415,51 @@ async def wizard_step3_save(
 
     db.commit()
 
+    if go_copy_all:
+        # Reload with full joins to access all blocks/days/sets for copy
+        full_program = _load_full(program_id, current_user.id, db)
+        _copy_block1_to_all(full_program, db)
+        db.commit()
+        # Navigate to Block 2, Day 1
+        blocks = sorted(full_program.blocks, key=lambda b: b.block_number)
+        if len(blocks) >= 2:
+            b2 = blocks[1]
+            days = sorted(b2.training_days, key=lambda d: d.day_number)
+            d1_num = days[0].day_number if days else 1
+            return RedirectResponse(
+                url=f"/programs/{program_id}/days?block={b2.block_number}&day={d1_num}",
+                status_code=303,
+            )
+
     if go_review:
         return RedirectResponse(url=f"/programs/{program_id}/review", status_code=303)
     return RedirectResponse(
         url=f"/programs/{program_id}/days?block={next_block}&day={next_day}",
+        status_code=303,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Copy Block 1 to all blocks (standalone — called from empty-block banner)
+# ---------------------------------------------------------------------------
+
+@router.post("/{program_id}/copy-block1-to-all")
+async def copy_block1_to_all(
+    program_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    form = await request.form()
+    # After copying, return to whichever block/day the user was on
+    target_block = int(form.get("target_block", 2) or 2)
+    target_day = int(form.get("target_day", 1) or 1)
+
+    program = _load_full(program_id, current_user.id, db)
+    _copy_block1_to_all(program, db)
+    db.commit()
+    return RedirectResponse(
+        url=f"/programs/{program_id}/days?block={target_block}&day={target_day}",
         status_code=303,
     )
 
