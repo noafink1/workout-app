@@ -107,26 +107,41 @@ def _copy_block1_to_all(program: Program, db: Session) -> None:
                 ))
 
 
-def _build_set_display(planned_sets) -> list[dict]:
-    """Group consecutive PlannedSets with identical parameters into display rows."""
-    groups: list[dict] = []
+def _build_exercise_groups(planned_sets) -> list[dict]:
+    """
+    Group consecutive PlannedSets by exercise into exercise cards.
+    Within each card, consecutive sets with identical (reps, intensity_type, intensity_value)
+    are merged into a set line with a count.
+    """
+    exercise_groups: list[dict] = []
     for ps in sorted(planned_sets, key=lambda s: s.order):
-        key = (ps.exercise_id, ps.reps, ps.intensity_type, ps.intensity_value)
-        if groups and groups[-1]["_key"] == key:
-            groups[-1]["count"] += 1
+        if exercise_groups and exercise_groups[-1]["exercise_id"] == ps.exercise_id:
+            eg = exercise_groups[-1]
         else:
-            groups.append({
-                "_key": key,
+            eg = {
+                "exercise_id": ps.exercise_id,
                 "exercise": ps.exercise,
+                "set_lines": [],
+            }
+            exercise_groups.append(eg)
+
+        key = (ps.reps, ps.intensity_type, ps.intensity_value)
+        if eg["set_lines"] and eg["set_lines"][-1]["_key"] == key:
+            eg["set_lines"][-1]["count"] += 1
+        else:
+            eg["set_lines"].append({
+                "_key": key,
                 "count": 1,
                 "reps": ps.reps,
                 "intensity_type": ps.intensity_type,
                 "intensity_value": ps.intensity_value,
                 "notes": ps.notes,
             })
-    for g in groups:
-        del g["_key"]
-    return groups
+
+    for eg in exercise_groups:
+        for sl in eg["set_lines"]:
+            del sl["_key"]
+    return exercise_groups
 
 
 # ---------------------------------------------------------------------------
@@ -306,7 +321,7 @@ def wizard_step3_page(
     prev_nav = all_day_coords[pos - 1] if pos > 0 else None
     next_nav = all_day_coords[pos + 1] if pos < len(all_day_coords) - 1 else None
 
-    existing_rows = _build_set_display(current_day.planned_sets) if current_day.planned_sets else []
+    exercise_groups = _build_exercise_groups(current_day.planned_sets) if current_day.planned_sets else []
 
     return templates.TemplateResponse(
         "program_builder.html",
@@ -323,7 +338,7 @@ def wizard_step3_page(
             "next_nav": next_nav,
             "exercises": exercises,
             "intensity_types": [e.value for e in IntensityType],
-            "existing_rows": existing_rows,
+            "exercise_groups": exercise_groups,
         },
     )
 
@@ -483,7 +498,7 @@ def wizard_step4_review(
             "days": [
                 {
                     "day": day,
-                    "rows": _build_set_display(day.planned_sets),
+                    "exercise_groups": _build_exercise_groups(day.planned_sets),
                 }
                 for day in sorted(block.training_days, key=lambda d: d.day_number)
             ],
