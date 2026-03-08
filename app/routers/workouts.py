@@ -77,9 +77,14 @@ def _build_exercise_groups(
             calculated_weight: Optional[float] = None
             one_rm_used: Optional[float] = None
             missing_1rm = False
+            rm_exercise_name: Optional[str] = None
 
             if ps.intensity_type == IntensityType.percentage and ps.intensity_value:
-                one_rm_used = _get_current_1rm(user_id, ps.exercise_id, db)
+                rm_exercise_id = ps.exercise.reference_exercise_id or ps.exercise_id
+                if ps.exercise.reference_exercise_id:
+                    ref_ex = db.query(Exercise).filter(Exercise.id == ps.exercise.reference_exercise_id).first()
+                    rm_exercise_name = ref_ex.name if ref_ex else None
+                one_rm_used = _get_current_1rm(user_id, rm_exercise_id, db)
                 if one_rm_used:
                     calculated_weight = calculate_weight(one_rm_used, ps.intensity_value)
                 else:
@@ -97,6 +102,7 @@ def _build_exercise_groups(
                 "calculated_weight": calculated_weight,
                 "one_rm_used": one_rm_used,
                 "missing_1rm": missing_1rm,
+                "rm_exercise_name": rm_exercise_name,
                 "last_weight": last_weight,
                 "sets": [],
             }

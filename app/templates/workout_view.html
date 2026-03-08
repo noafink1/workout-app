@@ -61,7 +61,7 @@
         </a>
         {% elif group.intensity_type == 'percentage' and group.one_rm_used %}
         <p class="text-[10px] font-mono text-gray-600 mt-[5px]">
-          {{ "%g" % group.intensity_value }}% of {{ "%.4g" % group.one_rm_used }}kg
+          {{ "%g" % group.intensity_value }}% of {% if group.rm_exercise_name %}<span class="text-gray-500">{{ group.rm_exercise_name }}</span> {% endif %}{{ "%.4g" % group.one_rm_used }}kg
           <span class="text-gray-500 mx-1">&rarr;</span>
           <span class="text-gray-400">{{ "%.4g" % group.calculated_weight }}kg</span>
         </p>

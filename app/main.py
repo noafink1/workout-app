@@ -16,8 +16,11 @@ load_dotenv()
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.migrations import run_migrations
 from app.models import Exercise, OneRepMax, ProgramRun, ScheduledWorkout, User
 from app.routers import auth, programs, workouts, prs, calendar, exercises, volume, progress, dashboard, ai
+
+run_migrations()
 
 app = FastAPI(title="PowerBuilding Workout Tracker")
 

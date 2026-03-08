@@ -78,6 +78,8 @@ class Exercise(Base):
     # NULL creator_user_id = default/seeded exercise; set = user-created custom exercise
     creator_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Optional: use another exercise's 1RM for percentage calculations (e.g. Tempo Squat → Squat)
+    reference_exercise_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("exercises.id"), nullable=True)
 
     # Relationships
     planned_sets: Mapped[list["PlannedSet"]] = relationship(back_populates="exercise")

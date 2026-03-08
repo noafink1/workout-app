@@ -62,6 +62,16 @@ def exercises_page(
         if mg not in _MG_ORDER:
             groups.append((mg, exs))
 
+    main_lifts = (
+        db.query(Exercise)
+        .filter(
+            Exercise.category == ExerciseCategory.main_lift,
+            Exercise.is_archived == False,  # noqa: E712
+        )
+        .order_by(Exercise.name)
+        .all()
+    )
+
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
@@ -74,6 +84,7 @@ def exercises_page(
             "total": len(exercises),
             "muscle_group_options": _MG_ORDER,
             "category_options": [c.value for c in ExerciseCategory],
+            "main_lifts": main_lifts,
             "error": error,
         },
     )
@@ -118,11 +129,15 @@ async def create_exercise(
         else None
     )
 
+    ref_id_str = str(form.get("reference_exercise_id", "")).strip()
+    reference_exercise_id = int(ref_id_str) if ref_id_str.isdigit() else None
+
     db.add(Exercise(
         name=name,
         category=category,
         muscle_group=muscle_group,
         creator_user_id=current_user.id,
+        reference_exercise_id=reference_exercise_id,
     ))
     db.commit()
     return RedirectResponse(url="/exercises", status_code=303)
@@ -169,6 +184,7 @@ async def edit_exercise(
 
     category_str = str(form.get("category", "accessory")).strip()
     muscle_group_str = str(form.get("muscle_group", "")).strip()
+    ref_id_str = str(form.get("reference_exercise_id", "")).strip()
     ex.name = name
     ex.category = (
         ExerciseCategory(category_str)
@@ -176,6 +192,7 @@ async def edit_exercise(
         else ex.category
     )
     ex.muscle_group = MuscleGroup(muscle_group_str) if muscle_group_str in _MG_ORDER else None
+    ex.reference_exercise_id = int(ref_id_str) if ref_id_str.isdigit() else None
     db.commit()
     return RedirectResponse(url="/exercises", status_code=303)
 
