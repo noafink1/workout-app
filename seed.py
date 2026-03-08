@@ -13,6 +13,7 @@ load_dotenv()
 
 from app.auth import hash_password
 from app.database import SessionLocal
+from app.migrations import run_migrations
 from app.models import (
     Block, Exercise, ExerciseCategory, IntensityType,
     MuscleGroup, PlannedSet, Program, TrainingDay, User,
@@ -243,4 +244,5 @@ def run_seed() -> None:
 
 
 if __name__ == "__main__":
+    run_migrations()
     run_seed()
