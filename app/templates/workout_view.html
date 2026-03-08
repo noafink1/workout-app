@@ -66,7 +66,13 @@
           <span class="text-gray-400">{{ "%.4g" % group.calculated_weight }}kg</span>
         </p>
         {% elif group.intensity_type == 'rpe' and group.intensity_value %}
-        <p class="text-[10px] font-mono text-gray-600 mt-[5px]">RPE {{ group.intensity_value | int }}</p>
+        <span class="inline-flex items-center gap-1 mt-[6px] px-[6px] py-[2px] bg-orange-900/30 border border-orange-700/40 rounded-[2px]">
+          <span class="text-[9px] uppercase tracking-[0.2em] font-mono text-orange-500">Target RPE</span>
+          <span class="text-[12px] font-mono font-[600] text-orange-300">{{ group.intensity_value | int }}</span>
+        </span>
+        {% endif %}
+        {% if group.sets[0].notes %}
+        <p class="text-[11px] font-mono text-gray-400 mt-[5px]">{{ group.sets[0].notes }}</p>
         {% endif %}
       </div>
 
@@ -107,7 +113,7 @@
             <span class="font-heading font-[700] text-[15px] uppercase tracking-[0.08em] text-gray-200">
               {{ ps.reps }}&nbsp;REPS
             </span>
-            <span class="text-[10px] font-mono text-gray-600 ml-1">@ RPE&nbsp;{{ ps.intensity_value | int }}</span>
+            <span class="text-[11px] font-mono text-orange-400 ml-2">@ RPE {{ ps.intensity_value | int }}</span>
           {% else %}
             <span class="font-heading font-[700] text-[16px] uppercase tracking-[0.1em] text-gray-200">
               {{ ps.reps }}&nbsp;REPS
