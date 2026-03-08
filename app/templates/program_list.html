@@ -21,6 +21,15 @@
                   rounded-[2px] border border-gray-700 hover:border-gray-500">
           Exercises
         </a>
+        <button onclick="document.getElementById('csv-modal').classList.remove('hidden')"
+                class="h-12 px-4 flex items-center gap-1.5 text-gray-500 hover:text-gray-300
+                       font-heading font-[700] text-[11px] uppercase tracking-[0.18em] transition-colors
+                       rounded-[2px] border border-gray-700 hover:border-gray-500">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          CSV
+        </button>
         <a href="/programs/new"
            class="h-12 px-6 flex items-center gap-2 bg-accent hover:bg-[#c44e00] text-white
                   font-heading font-[700] text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
@@ -173,4 +182,71 @@
   {% endif %}
 
 </div>
+
+{# ── CSV Upload Modal ─────────────────────────────────────────────────────── #}
+<div id="csv-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4"
+     onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="absolute inset-0 bg-black/70"></div>
+  <div class="relative bg-[#1f2937] border border-gray-700 w-full max-w-md p-6">
+    <h2 class="font-heading font-[800] text-[22px] uppercase tracking-[0.1em] text-white mb-1">
+      Import CSV
+    </h2>
+    <p class="text-[11px] text-gray-600 font-mono mb-6">
+      Columns required: Week, Workout, Exercise_Order, Exercise, Sets, Reps<br>
+      Optional: RPE, Load_%
+    </p>
+
+    <form action="/programs/csv-preview" method="post" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1.5 font-mono">
+          Program Name
+        </label>
+        <input type="text" name="program_name" id="csv-program-name" required
+               placeholder="e.g. Powerlifter Level 1"
+               class="w-full h-10 px-3 bg-[#111827] border border-gray-700 text-white text-[13px] font-mono
+                      rounded-[2px] focus:outline-none focus:border-accent transition-all placeholder-gray-700">
+      </div>
+
+      <div>
+        <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1.5 font-mono">
+          CSV File
+        </label>
+        <input type="file" name="file" id="csv-file-input" accept=".csv" required
+               onchange="prefillName(this)"
+               class="w-full text-[12px] font-mono text-gray-400
+                      file:mr-3 file:h-9 file:px-4 file:border-0
+                      file:bg-gray-700 file:text-gray-300 file:text-[11px]
+                      file:font-heading file:font-[700] file:uppercase file:tracking-[0.15em]
+                      file:cursor-pointer file:rounded-[2px]
+                      hover:file:bg-gray-600 transition-all cursor-pointer">
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button type="submit"
+                class="flex-1 h-11 flex items-center justify-center bg-accent hover:bg-[#c44e00] text-white
+                       font-heading font-[700] text-[12px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+          Import
+        </button>
+        <button type="button" onclick="document.getElementById('csv-modal').classList.add('hidden')"
+                class="h-11 px-5 flex items-center text-gray-500 hover:text-gray-300
+                       font-heading font-[700] text-[11px] uppercase tracking-[0.18em] transition-colors
+                       border border-gray-700 hover:border-gray-500 rounded-[2px]">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function prefillName(input) {
+  const nameField = document.getElementById('csv-program-name');
+  if (nameField.value.trim() === '' && input.files.length > 0) {
+    const raw = input.files[0].name.replace(/\.csv$/i, '').replace(/[_-]/g, ' ');
+    nameField.value = raw.replace(/\b\w/g, c => c.toUpperCase());
+  }
+}
+</script>
 {% endblock %}

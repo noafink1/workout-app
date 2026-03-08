@@ -128,6 +128,58 @@ async def create_exercise(
     return RedirectResponse(url="/exercises", status_code=303)
 
 
+@router.post("/{exercise_id}/edit")
+async def edit_exercise(
+    exercise_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    ex = (
+        db.query(Exercise)
+        .filter(
+            Exercise.id == exercise_id,
+            Exercise.creator_user_id == current_user.id,
+            Exercise.is_archived == False,  # noqa: E712
+        )
+        .first()
+    )
+    if not ex:
+        raise HTTPException(status_code=404)
+
+    form = await request.form()
+    name = str(form.get("name", "")).strip()
+    if not name:
+        return RedirectResponse(url="/exercises?error=Name+is+required", status_code=303)
+
+    duplicate = (
+        db.query(Exercise)
+        .filter(
+            func.lower(Exercise.name) == name.lower(),
+            Exercise.id != exercise_id,
+            Exercise.is_archived == False,  # noqa: E712
+        )
+        .first()
+    )
+    if duplicate:
+        return RedirectResponse(
+            url="/exercises?error=An+exercise+with+that+name+already+exists",
+            status_code=303,
+        )
+
+    category_str = str(form.get("category", "accessory")).strip()
+    muscle_group_str = str(form.get("muscle_group", "")).strip()
+    ex.name = name
+    ex.category = (
+        ExerciseCategory(category_str)
+        if category_str in [c.value for c in ExerciseCategory]
+        else ex.category
+    )
+    ex.muscle_group = MuscleGroup(muscle_group_str) if muscle_group_str in _MG_ORDER else None
+    db.commit()
+    return RedirectResponse(url="/exercises", status_code=303)
+
+
 @router.post("/{exercise_id}/archive")
 def archive_exercise(
     exercise_id: int,

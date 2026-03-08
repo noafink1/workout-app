@@ -15,9 +15,15 @@ Wizard flow (draft saved to DB at each step):
   POST /programs/{id}/duplicate→ deep copy → redirect to review
   POST /programs/{id}/delete   → soft-archive
 """
+import base64
+import csv
+import difflib
+import io
+import json
+from collections import defaultdict
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, joinedload
@@ -25,8 +31,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import (
-    Block, Exercise, IntensityType,
-    PlannedSet, Program, TrainingDay, User,
+    Block, Exercise, ExerciseCategory, IntensityType,
+    MuscleGroup, PlannedSet, Program, TrainingDay, User,
 )
 
 router = APIRouter(prefix="/programs", tags=["programs"])
@@ -590,6 +596,233 @@ def duplicate_program(
 
     db.commit()
     return RedirectResponse(url=f"/programs/{new_prog.id}/review", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# CSV Import
+# ---------------------------------------------------------------------------
+
+@router.post("/csv-preview")
+async def csv_preview(
+    request: Request,
+    file: UploadFile = File(...),
+    program_name: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    """
+    Step 1 of CSV import: parse file, fuzzy-match exercises, and show a review
+    page so the user can confirm or remap before anything is written to the DB.
+    """
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+    rows = list(reader)
+
+    required_cols = {"Week", "Workout", "Exercise_Order", "Exercise", "Sets", "Reps"}
+    actual_cols = set(reader.fieldnames or [])
+    if not required_cols.issubset(actual_cols):
+        missing = required_cols - actual_cols
+        raise HTTPException(status_code=400, detail=f"CSV missing columns: {', '.join(sorted(missing))}")
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="CSV has no data rows")
+
+    # Build exercise lookup
+    all_exercises = db.query(Exercise).filter(Exercise.is_archived == False).order_by(Exercise.name).all()  # noqa: E712
+    exercise_map: dict[str, int] = {e.name.lower(): e.id for e in all_exercises}
+
+    # Unique exercise names in order of appearance
+    seen_names: dict[str, None] = {}
+    for row in rows:
+        seen_names[row["Exercise"].strip()] = None
+    unique_names = list(seen_names.keys())
+
+    # Build review list with exact/fuzzy/no-match status
+    exercise_review = []
+    for i, csv_name in enumerate(unique_names):
+        key = csv_name.lower()
+        if key in exercise_map:
+            exercise_review.append({
+                "index": i,
+                "csv_name": csv_name,
+                "matched_id": exercise_map[key],
+                "match_type": "exact",
+                "suggestions": [],
+            })
+        else:
+            close = difflib.get_close_matches(key, list(exercise_map.keys()), n=3, cutoff=0.5)
+            exercise_review.append({
+                "index": i,
+                "csv_name": csv_name,
+                "matched_id": exercise_map[close[0]] if close else None,
+                "match_type": "fuzzy" if close else "none",
+                "suggestions": [(name, exercise_map[name]) for name in close],
+            })
+
+    rows_b64 = base64.b64encode(json.dumps(rows).encode()).decode()
+
+    return templates.TemplateResponse(
+        "csv_review.html",
+        {
+            "request": request,
+            "user": current_user,
+            "program_name": program_name,
+            "exercise_review": exercise_review,
+            "all_exercises": all_exercises,
+            "rows_b64": rows_b64,
+            "ex_count": len(unique_names),
+        },
+    )
+
+
+@router.post("/upload-csv")
+async def upload_csv(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    """
+    Step 2 of CSV import: receive user-confirmed exercise mappings, then create
+    the Program, Blocks, TrainingDays, and PlannedSets.
+    """
+    form = await request.form()
+    program_name = str(form.get("program_name", "")).strip()
+    rows_b64 = str(form.get("rows_b64", ""))
+    ex_count = int(form.get("ex_count", 0))
+
+    if not program_name:
+        raise HTTPException(status_code=400, detail="Program name is required")
+
+    try:
+        rows: list[dict] = json.loads(base64.b64decode(rows_b64).decode())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid CSV data — please re-upload the file")
+
+    # Resolve csv_name → exercise id (create "new" exercises user approved)
+    csv_to_ex_id: dict[str, int] = {}
+    for i in range(ex_count):
+        csv_name = str(form.get(f"ex_name_{i}", "")).strip()
+        selection = str(form.get(f"ex_map_{i}", "new")).strip()
+        if selection == "new":
+            cat_str = str(form.get(f"ex_category_{i}", "accessory")).strip()
+            mg_str = str(form.get(f"ex_muscle_group_{i}", "")).strip()
+            new_category = (
+                ExerciseCategory(cat_str)
+                if cat_str in [c.value for c in ExerciseCategory]
+                else ExerciseCategory.accessory
+            )
+            new_muscle_group = MuscleGroup(mg_str) if mg_str in [mg.value for mg in MuscleGroup] else None
+            new_ex = Exercise(
+                name=csv_name,
+                category=new_category,
+                muscle_group=new_muscle_group,
+                creator_user_id=current_user.id,
+            )
+            db.add(new_ex)
+            db.flush()
+            csv_to_ex_id[csv_name] = new_ex.id
+        else:
+            csv_to_ex_id[csv_name] = int(selection)
+
+    # Create program (confirmed, not draft)
+    program = Program(
+        creator_user_id=current_user.id,
+        name=program_name,
+        is_draft=False,
+    )
+    db.add(program)
+    db.flush()
+
+    # Collect ordered unique weeks and (week, workout) pairs
+    weeks: list[int] = sorted(set(int(r["Week"]) for r in rows))
+    day_pairs: list[tuple[int, int]] = sorted(set((int(r["Week"]), int(r["Workout"])) for r in rows))
+
+    # Create one Block per week
+    block_map: dict[int, Block] = {}
+    for block_num, week_num in enumerate(weeks, start=1):
+        block = Block(program_id=program.id, block_number=block_num, name=f"Week {week_num}")
+        db.add(block)
+        db.flush()
+        block_map[week_num] = block
+
+    # Create one TrainingDay per (week, workout)
+    day_map: dict[tuple[int, int], TrainingDay] = {}
+    day_nums_per_week: dict[int, int] = defaultdict(int)
+    for week_num, workout_num in day_pairs:
+        day_nums_per_week[week_num] += 1
+        td = TrainingDay(
+            block_id=block_map[week_num].id,
+            day_number=day_nums_per_week[week_num],
+            name=f"Day {workout_num}",
+        )
+        db.add(td)
+        db.flush()
+        day_map[(week_num, workout_num)] = td
+
+    # Group CSV rows by (week, workout), preserving original order
+    workout_rows: dict[tuple[int, int], list[dict]] = defaultdict(list)
+    for row in rows:
+        workout_rows[(int(row["Week"]), int(row["Workout"]))].append(row)
+
+    # Create PlannedSets for each day
+    for key in day_pairs:
+        td = day_map[key]
+        order = 0
+        for row in workout_rows[key]:
+            csv_ex_name = row["Exercise"].strip()
+            ex_id = csv_to_ex_id[csv_ex_name]
+
+            try:
+                num_sets = max(1, int(float(row.get("Sets") or 1)))
+            except (ValueError, TypeError):
+                num_sets = 1
+
+            reps_str = (row.get("Reps") or "1").strip()
+            if "-" in reps_str:
+                reps = int(reps_str.split("-")[0])
+            else:
+                try:
+                    reps = max(1, int(float(reps_str)))
+                except (ValueError, TypeError):
+                    reps = 1
+
+            load_pct = (row.get("Load_%") or "").strip()
+            rpe_val = (row.get("RPE") or "").strip()
+            if load_pct:
+                int_type = IntensityType.percentage
+                int_value: Optional[float] = float(load_pct)
+            elif rpe_val:
+                int_type = IntensityType.rpe
+                int_value = float(rpe_val)
+            else:
+                int_type = IntensityType.freeform
+                int_value = None
+
+            notes_val = f"RPE {rpe_val}" if rpe_val else None
+
+            for set_num in range(1, num_sets + 1):
+                db.add(PlannedSet(
+                    training_day_id=td.id,
+                    exercise_id=ex_id,
+                    order=order,
+                    set_number=set_num,
+                    reps=reps,
+                    intensity_type=int_type,
+                    intensity_value=int_value,
+                    notes=notes_val,
+                ))
+                order += 1
+
+    db.commit()
+    return RedirectResponse(
+        url=f"/programs/{program.id}/days?block=1&day=1&imported=1",
+        status_code=303,
+    )
 
 
 # ---------------------------------------------------------------------------

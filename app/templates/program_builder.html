@@ -44,7 +44,7 @@
     </label>
     <input type="number" name="intensity_value"
            value="{{ intensity_value if intensity_value is not none and intensity_type != 'freeform' else '' }}"
-           step="{{ '1' if intensity_type != 'rpe' else '0.5' }}"
+           step="0.5"
            min="0" max="{{ '100' if intensity_type != 'rpe' else '10' }}"
            placeholder="{{ '75' if intensity_type != 'rpe' else '8' }}"
            class="w-full h-9 px-2 bg-[#1f2937] border border-gray-700 text-white text-[13px] font-mono
@@ -299,6 +299,17 @@
      ════════════════════════════════════════════════════════════════════════ #}
   {% elif step == 3 %}
 
+  {% if request.query_params.get('imported') %}
+  <div class="bg-green-900/15 border border-green-800/40 px-5 py-3 mb-5 flex items-center gap-3">
+    <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <p class="text-[11px] font-mono text-green-600">
+      CSV imported successfully. Review and edit each day below, then go to Review when done.
+    </p>
+  </div>
+  {% endif %}
+
   {# Day nav dots #}
   <div class="flex flex-wrap items-center gap-x-3 gap-y-2 mb-5">
     {% for bnum, dnum in all_day_coords %}
@@ -515,7 +526,7 @@
           <span class="text-gray-600 ml-2">
             {%- for sl in eg.set_lines -%}
             {{ sl.count }}×{{ sl.reps }}
-            {%- if sl.intensity_type.value == 'percentage' and sl.intensity_value is not none %} @ {{ sl.intensity_value | int }}%
+            {%- if sl.intensity_type.value == 'percentage' and sl.intensity_value is not none %} @ {{ "%g" % sl.intensity_value }}%
             {%- elif sl.intensity_type.value == 'rpe' and sl.intensity_value is not none %} RPE {{ sl.intensity_value }}
             {%- endif -%}
             {%- if sl.notes %} <span class="text-gray-700 text-[11px]">— {{ sl.notes }}</span>{% endif -%}
@@ -686,7 +697,7 @@ function updateIntensity(sel) {
     if (lbl) lbl.textContent = isPct ? '%' : 'RPE';
     if (inp) {
       inp.max         = isPct ? '100' : '10';
-      inp.step        = isPct ? '1'   : '0.5';
+      inp.step        = '0.5';
       inp.placeholder = isPct ? '75'  : '8';
     }
   }

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Review Import — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="px-5 py-8 lg:px-10 lg:py-12 max-w-3xl">
+
+  {# ── Page header ──────────────────────────────────────────────────────── #}
+  <div class="mb-8 border-b border-gray-800 pb-6">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-2 font-mono">CSV Import</p>
+    <h1 class="font-heading font-[800] text-[48px] lg:text-[56px] uppercase tracking-[0.08em] text-white leading-none mb-3">
+      Review Exercises
+    </h1>
+    <p class="text-[12px] text-gray-500 font-mono">
+      Confirm how each exercise in the CSV maps to your exercise library.
+      Fuzzy matches are pre-selected — verify they look right.
+    </p>
+  </div>
+
+  <form action="/programs/upload-csv" method="post">
+    <input type="hidden" name="rows_b64" value="{{ rows_b64 }}">
+    <input type="hidden" name="ex_count" value="{{ ex_count }}">
+
+    {# ── Program name ─────────────────────────────────────────────────────── #}
+    <div class="mb-8">
+      <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1.5 font-mono">
+        Program Name
+      </label>
+      <input type="text" name="program_name" value="{{ program_name }}" required
+             class="w-full h-11 px-3 bg-[#111827] border border-gray-700 text-white text-[13px] font-mono
+                    rounded-[2px] focus:outline-none focus:border-accent transition-all">
+    </div>
+
+    {# ── Legend ───────────────────────────────────────────────────────────── #}
+    <div class="flex flex-wrap gap-4 mb-5">
+      <span class="flex items-center gap-1.5 text-[10px] font-mono text-gray-500">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span> Exact match
+      </span>
+      <span class="flex items-center gap-1.5 text-[10px] font-mono text-gray-500">
+        <span class="inline-block w-2 h-2 rounded-full bg-amber-400"></span> Fuzzy suggestion — please verify
+      </span>
+      <span class="flex items-center gap-1.5 text-[10px] font-mono text-gray-500">
+        <span class="inline-block w-2 h-2 rounded-full bg-red-500"></span> No match found
+      </span>
+    </div>
+
+    {# ── Exercise mapping table ────────────────────────────────────────────── #}
+    <div class="space-y-2 mb-10">
+      {% for item in exercise_review %}
+      <input type="hidden" name="ex_name_{{ item.index }}" value="{{ item.csv_name }}">
+
+      <div class="bg-[#1f2937] border border-gray-700/60 p-4
+                  {% if item.match_type == 'fuzzy' %}border-l-[3px] border-l-amber-400/70
+                  {% elif item.match_type == 'none' %}border-l-[3px] border-l-red-500/70
+                  {% else %}border-l-[3px] border-l-emerald-500/60{% endif %}">
+
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+
+          {# CSV name + badge #}
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-mono text-[13px] text-white">{{ item.csv_name }}</span>
+              {% if item.match_type == 'exact' %}
+                <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-[2px]">
+                  Matched
+                </span>
+              {% elif item.match_type == 'fuzzy' %}
+                <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-[2px]">
+                  Suggested
+                </span>
+              {% else %}
+                <span class="text-[9px] font-mono uppercase tracking-[0.2em] text-red-400 bg-red-400/10 px-2 py-0.5 rounded-[2px]">
+                  No Match
+                </span>
+              {% endif %}
+            </div>
+            {% if item.match_type == 'fuzzy' %}
+              <p class="text-[10px] text-gray-600 font-mono mt-0.5">Fuzzy match — confirm this is correct</p>
+            {% elif item.match_type == 'none' %}
+              <p class="text-[10px] text-gray-600 font-mono mt-0.5">Select an existing exercise or create new</p>
+            {% endif %}
+          </div>
+
+          {# Exercise selector #}
+          <div class="sm:w-72 flex-shrink-0">
+            <select name="ex_map_{{ item.index }}"
+                    onchange="onExerciseSelect({{ item.index }}, this)"
+                    class="w-full h-10 px-3 bg-[#111827] border text-[12px] font-mono text-white rounded-[2px]
+                           focus:outline-none focus:border-accent transition-all
+                           {% if item.match_type == 'fuzzy' %}border-amber-400/40
+                           {% elif item.match_type == 'none' %}border-red-500/40
+                           {% else %}border-gray-700{% endif %}">
+              <option value="new"{% if not item.matched_id %} selected{% endif %}>
+                — Create new exercise —
+              </option>
+              {% for ex in all_exercises %}
+              <option value="{{ ex.id }}"{% if item.matched_id == ex.id %} selected{% endif %}>
+                {{ ex.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+        </div>
+
+        {# Extra fields shown only when "Create new" is selected #}
+        <div id="new-fields-{{ item.index }}"
+             class="{% if item.matched_id %}hidden{% endif %} mt-3 pt-3 border-t border-gray-700/40
+                    grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1 font-mono">Category</label>
+            <select name="ex_category_{{ item.index }}"
+                    class="w-full h-9 px-3 bg-[#111827] border border-gray-700 text-white text-[11px] font-mono
+                           rounded-[2px] focus:outline-none focus:border-accent transition-all">
+              <option value="accessory">Accessory</option>
+              <option value="main_lift">Main Lift</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[9px] uppercase tracking-[0.2em] text-gray-600 mb-1 font-mono">Muscle Group</label>
+            <select name="ex_muscle_group_{{ item.index }}"
+                    class="w-full h-9 px-3 bg-[#111827] border border-gray-700 text-white text-[11px] font-mono
+                           rounded-[2px] focus:outline-none focus:border-accent transition-all">
+              <option value="">— None —</option>
+              <option value="chest">Chest</option>
+              <option value="back">Back</option>
+              <option value="legs">Legs</option>
+              <option value="shoulders">Shoulders</option>
+              <option value="arms">Arms</option>
+              <option value="core">Core</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── Actions ──────────────────────────────────────────────────────────── #}
+    <div class="flex gap-3">
+      <button type="submit"
+              class="h-12 px-8 flex items-center justify-center bg-accent hover:bg-[#c44e00] text-white
+                     font-heading font-[700] text-[13px] uppercase tracking-[0.2em] transition-colors rounded-[2px]">
+        Create Program
+      </button>
+      <a href="/programs"
+         class="h-12 px-5 flex items-center text-gray-500 hover:text-gray-300
+                font-heading font-[700] text-[11px] uppercase tracking-[0.18em] transition-colors
+                border border-gray-700 hover:border-gray-500 rounded-[2px]">
+        Cancel
+      </a>
+    </div>
+
+  </form>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onExerciseSelect(idx, selectEl) {
+  const panel = document.getElementById('new-fields-' + idx);
+  if (panel) panel.classList.toggle('hidden', selectEl.value !== 'new');
+}
+</script>
+{% endblock %}

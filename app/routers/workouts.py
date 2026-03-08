@@ -277,14 +277,14 @@ async def complete_workout(
                 if existing:
                     existing.weight_kg = actual_weight
                     existing.reps = actual_reps
-                    existing.date_set = date.today()
+                    existing.date_set = workout.scheduled_date
                 else:
                     db.add(AccessoryBest(
                         user_id=current_user.id,
                         exercise_id=best_exercise_id,
                         weight_kg=actual_weight,
                         reps=actual_reps,
-                        date_set=date.today(),
+                        date_set=workout.scheduled_date,
                     ))
 
     workout.completed_at = datetime.now(timezone.utc)

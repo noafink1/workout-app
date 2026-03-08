@@ -63,6 +63,11 @@
         <p class="text-[10px] text-gray-600 font-mono">{{ sw.program_run.program.name }}</p>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
+        <a href="/workouts/{{ sw.id }}"
+           class="h-9 px-4 flex items-center bg-accent hover:bg-[#c44e00] text-white
+                  font-heading font-[700] text-[10px] uppercase tracking-[0.15em] transition-colors rounded-[2px]">
+          Log Workout
+        </a>
         <form action="/calendar/reschedule/{{ sw.id }}" method="post" class="flex items-center gap-2">
           <input type="date" name="new_date" value="{{ today.isoformat() }}"
                  class="h-9 px-2 bg-[#1f2937] border border-gray-700 text-white text-[12px] font-mono
