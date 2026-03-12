@@ -214,7 +214,7 @@ class CompletedSet(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     scheduled_workout_id: Mapped[int] = mapped_column(Integer, ForeignKey("scheduled_workouts.id"), nullable=False, index=True)
-    planned_set_id: Mapped[int] = mapped_column(Integer, ForeignKey("planned_sets.id"), nullable=False)
+    planned_set_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("planned_sets.id"), nullable=True)
     actual_weight_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     actual_reps: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     was_modified: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -223,8 +223,9 @@ class CompletedSet(Base):
     logged_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     scheduled_workout: Mapped["ScheduledWorkout"] = relationship(back_populates="completed_sets")
-    planned_set: Mapped["PlannedSet"] = relationship(back_populates="completed_sets")
+    planned_set: Mapped[Optional["PlannedSet"]] = relationship(back_populates="completed_sets")
     substituted_exercise: Mapped[Optional["Exercise"]] = relationship(foreign_keys=[substituted_exercise_id])
+
 
 
 # ---------------------------------------------------------------------------
