@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Weekly View — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="px-5 py-8 lg:px-10 lg:py-12 max-w-5xl">
+
+  {# ── Page header ───────────────────────────────────────────────────────── #}
+  <div class="mb-8 border-b border-gray-800 pb-6">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-2 font-mono">This Week</p>
+    <h1 class="font-heading font-[800] text-[48px] lg:text-[56px] uppercase tracking-[0.08em] text-white leading-none">
+      {{ week_label }}
+    </h1>
+  </div>
+
+  {# ── Muscle group volume chart ──────────────────────────────────────────── #}
+  <div class="mb-10">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-4 font-mono">
+      Volume · By Muscle Group
+    </p>
+    {% if muscle_volume %}
+    <div class="bg-[#1f2937] border border-gray-700/50 p-5">
+      <div class="relative" style="height: 220px;">
+        <canvas id="muscle-volume-chart"></canvas>
+      </div>
+    </div>
+    {% else %}
+    <div class="bg-[#1f2937] border border-gray-800 p-8 text-center">
+      <p class="text-[12px] text-gray-600 font-mono">No completed sets this week.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Workouts by day ────────────────────────────────────────────────────── #}
+  <div>
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-4 font-mono">
+      Workouts · Day by Day
+    </p>
+    <div class="space-y-3">
+      {% for day, workouts in workouts_by_day.items() %}
+      <div class="bg-[#1f2937] border border-gray-700/50
+                  {% if workouts %}border-l-[3px] border-l-accent{% endif %}">
+        <div class="flex items-center gap-4 px-5 py-3">
+          <span class="font-heading font-[700] text-[13px] uppercase tracking-[0.2em] text-gray-400 w-10 flex-shrink-0">
+            {{ day }}
+          </span>
+          {% if workouts %}
+            <div class="flex-1 space-y-1">
+              {% for w in workouts %}
+              <div class="flex items-center justify-between">
+                <span class="font-mono text-[13px] text-white">
+                  {{ w.training_day.name if w.training_day else 'Workout' }}
+                </span>
+                <span class="font-mono text-[11px] text-gray-600">
+                  {{ w.completed_sets | length }} set{{ 's' if w.completed_sets | length != 1 else '' }}
+                </span>
+              </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <span class="font-mono text-[12px] text-gray-700">—</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+{% if muscle_volume %}
+const MUSCLE_VOLUME = {{ muscle_volume | tojson }};
+
+const MG_COLORS = {
+  chest:     { bg: 'rgba(232, 93,  4,   0.80)', border: '#e85d04' },
+  back:      { bg: 'rgba(59,  130, 246,  0.80)', border: '#3b82f6' },
+  legs:      { bg: 'rgba(139, 92,  246,  0.80)', border: '#8b5cf6' },
+  shoulders: { bg: 'rgba(34,  197, 94,   0.80)', border: '#22c55e' },
+  arms:      { bg: 'rgba(234, 179, 8,    0.80)', border: '#eab308' },
+  core:      { bg: 'rgba(239, 68,  68,   0.80)', border: '#ef4444' },
+};
+
+const TOOLTIP_STYLE = {
+  backgroundColor: '#0b1120',
+  borderColor: '#374151',
+  borderWidth: 1,
+  titleColor: '#6b7280',
+  bodyColor: '#ffffff',
+  padding: 10,
+  titleFont: { family: "'DM Mono', monospace", size: 10 },
+  bodyFont:  { family: "'DM Mono', monospace", size: 12 },
+};
+
+const AXIS_STYLE = {
+  grid:   { color: 'rgba(255,255,255,0.035)' },
+  border: { color: 'rgba(255,255,255,0.06)' },
+  ticks: {
+    color: '#4b5563',
+    font:  { family: "'DM Mono', monospace", size: 10 },
+    maxRotation: 0,
+  },
+};
+
+const labels = Object.keys(MUSCLE_VOLUME).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+const values = Object.values(MUSCLE_VOLUME);
+const keys   = Object.keys(MUSCLE_VOLUME);
+
+const bgColors     = keys.map(k => (MG_COLORS[k] || { bg: 'rgba(107,114,128,0.7)' }).bg);
+const borderColors = keys.map(k => (MG_COLORS[k] || { border: '#6b7280' }).border);
+
+const canvas = document.getElementById('muscle-volume-chart');
+if (canvas) {
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: bgColors,
+        borderColor: borderColors,
+        borderWidth: 1,
+        borderRadius: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...TOOLTIP_STYLE,
+          callbacks: {
+            label: ctx => `  ${Math.round(ctx.parsed.y).toLocaleString()} kg·reps`,
+          },
+        },
+      },
+      scales: {
+        x: { ...AXIS_STYLE },
+        y: {
+          ...AXIS_STYLE,
+          ticks: {
+            ...AXIS_STYLE.ticks,
+            callback: v => v.toLocaleString(),
+          },
+        },
+      },
+    },
+  });
+}
+{% endif %}
+</script>
+{% endblock %}

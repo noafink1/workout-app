@@ -18,7 +18,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.migrations import run_migrations
 from app.models import Exercise, OneRepMax, ProgramRun, ScheduledWorkout, User
-from app.routers import auth, programs, workouts, prs, calendar, exercises, volume, progress, dashboard, ai
+from app.routers import auth, programs, workouts, prs, calendar, exercises, volume, progress, dashboard, ai, week
 
 run_migrations()
 
@@ -43,6 +43,7 @@ app.include_router(volume.router)
 app.include_router(progress.router)
 app.include_router(dashboard.router)
 app.include_router(ai.router)
+app.include_router(week.router)
 
 
 # ---------------------------------------------------------------------------

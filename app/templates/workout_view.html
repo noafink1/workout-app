@@ -163,13 +163,13 @@
   <div class="bg-[#1f2937] border border-gray-700/50 p-4">
     <label class="flex items-center justify-between mb-3">
       <span class="text-[10px] uppercase tracking-[0.25em] text-gray-600 font-mono">Session Notes</span>
-      <span class="text-[10px] font-mono text-gray-700" id="notes-counter">0 / 500</span>
+      <span class="text-[10px] font-mono text-gray-700" id="notes-counter">0 / 2000</span>
     </label>
     <textarea
       name="session_notes"
       id="session-notes"
       rows="3"
-      maxlength="500"
+      maxlength="2000"
       placeholder="How did it feel? Anything to note... (optional)"
       {% if already_completed %}readonly{% endif %}
       class="w-full bg-[#111827] border border-gray-700 text-gray-300 text-[13px] font-mono
@@ -333,7 +333,7 @@
   const counterEl = document.getElementById('notes-counter');
   if (notesEl && counterEl) {
     notesEl.addEventListener('input', () => {
-      counterEl.textContent = notesEl.value.length + ' / 500';
+      counterEl.textContent = notesEl.value.length + ' / 2000';
     });
   }
 
