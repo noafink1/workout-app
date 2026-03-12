@@ -167,46 +167,42 @@ def today_redirect(
 
 def _build_completed_groups(workout_id: int, db: Session) -> list[dict]:
     """
-    Group CompletedSets and ExtraSets for a finished workout by exercise name.
+    Group CompletedSets for a finished workout by exercise name.
+    Planned sets (planned_set_id IS NOT NULL) come first ordered by plan position.
+    Unplanned sets added post-completion (planned_set_id IS NULL) follow, ordered by logged_at.
     Respects substitutions: uses the substituted exercise name when present.
-    Returns a list of {exercise_name, sets} dicts — planned sets first, then extras.
+    Returns a list of {exercise_name, sets} dicts.
     """
-    completed_sets = (
+    all_sets = (
         db.query(CompletedSet)
         .options(
             joinedload(CompletedSet.planned_set).joinedload(PlannedSet.exercise),
             joinedload(CompletedSet.substituted_exercise),
         )
-        .join(PlannedSet, CompletedSet.planned_set_id == PlannedSet.id)
         .filter(CompletedSet.scheduled_workout_id == workout_id)
-        .order_by(PlannedSet.order, PlannedSet.set_number)
         .all()
     )
 
+    # Planned sets first (sorted by plan order), unplanned last (sorted by logged_at)
+    planned = [cs for cs in all_sets if cs.planned_set_id is not None]
+    unplanned = [cs for cs in all_sets if cs.planned_set_id is None]
+    planned.sort(key=lambda cs: (cs.planned_set.order, cs.planned_set.set_number))
+    unplanned.sort(key=lambda cs: (cs.logged_at, cs.id))
+
     seen: dict[str, dict] = {}
-    for cs in completed_sets:
-        ex_name = (
-            cs.substituted_exercise.name
-            if cs.substituted_exercise
-            else cs.planned_set.exercise.name
-        )
+    for cs in planned + unplanned:
+        if cs.planned_set_id is not None:
+            ex_name = (
+                cs.substituted_exercise.name
+                if cs.substituted_exercise
+                else cs.planned_set.exercise.name
+            )
+        else:
+            # Unplanned set: exercise stored in substituted_exercise_id
+            ex_name = cs.substituted_exercise.name if cs.substituted_exercise else "Unknown"
         if ex_name not in seen:
             seen[ex_name] = {"exercise_name": ex_name, "sets": []}
         seen[ex_name]["sets"].append(cs)
-
-    # Append extra sets added post-completion
-    extra_sets = (
-        db.query(ExtraSet)
-        .options(joinedload(ExtraSet.exercise))
-        .filter(ExtraSet.scheduled_workout_id == workout_id)
-        .order_by(ExtraSet.logged_at, ExtraSet.id)
-        .all()
-    )
-    for es in extra_sets:
-        ex_name = es.exercise.name
-        if ex_name not in seen:
-            seen[ex_name] = {"exercise_name": ex_name, "sets": []}
-        seen[ex_name]["sets"].append(es)
 
     return list(seen.values())
 
