@@ -266,6 +266,19 @@ async def start_program(
     if program.creator_user_id != current_user.id and not program.is_public:
         raise HTTPException(status_code=403)
 
+    # Reject duplicate: user already has an active run for this program
+    existing_run = (
+        db.query(ProgramRun)
+        .filter(
+            ProgramRun.user_id == current_user.id,
+            ProgramRun.program_id == program_id,
+            ProgramRun.completed_at == None,  # noqa: E711
+        )
+        .first()
+    )
+    if existing_run:
+        raise HTTPException(status_code=400, detail="This program is already active")
+
     # Parse start date
     start_date_str = str(form.get("start_date", ""))
     try:

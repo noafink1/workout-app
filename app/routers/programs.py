@@ -32,7 +32,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models import (
     Block, Exercise, ExerciseCategory, IntensityType,
-    MuscleGroup, PlannedSet, Program, TrainingDay, User,
+    MuscleGroup, PlannedSet, Program, ProgramRun, TrainingDay, User,
 )
 
 router = APIRouter(prefix="/programs", tags=["programs"])
@@ -179,6 +179,16 @@ def program_list(
         .all()
     )
 
+    active_program_ids: set[int] = {
+        row.program_id
+        for row in db.query(ProgramRun.program_id)
+        .filter(
+            ProgramRun.user_id == current_user.id,
+            ProgramRun.completed_at == None,  # noqa: E711
+        )
+        .all()
+    }
+
     return templates.TemplateResponse(
         "program_list.html",
         {
@@ -187,6 +197,7 @@ def program_list(
             "programs": confirmed,
             "draft": draft,
             "example_programs": example_programs,
+            "active_program_ids": active_program_ids,
         },
     )
 
