@@ -164,6 +164,38 @@ def today_redirect(
     return RedirectResponse(url="/", status_code=303)
 
 
+def _build_completed_groups(workout_id: int, db: Session) -> list[dict]:
+    """
+    Group CompletedSets for a finished workout by exercise name.
+    Respects substitutions: uses the substituted exercise name when present.
+    Returns a list of {exercise_name, sets} dicts in original set order.
+    """
+    completed_sets = (
+        db.query(CompletedSet)
+        .options(
+            joinedload(CompletedSet.planned_set).joinedload(PlannedSet.exercise),
+            joinedload(CompletedSet.substituted_exercise),
+        )
+        .join(PlannedSet, CompletedSet.planned_set_id == PlannedSet.id)
+        .filter(CompletedSet.scheduled_workout_id == workout_id)
+        .order_by(PlannedSet.order, PlannedSet.set_number)
+        .all()
+    )
+
+    seen: dict[str, dict] = {}
+    for cs in completed_sets:
+        ex_name = (
+            cs.substituted_exercise.name
+            if cs.substituted_exercise
+            else cs.planned_set.exercise.name
+        )
+        if ex_name not in seen:
+            seen[ex_name] = {"exercise_name": ex_name, "sets": []}
+        seen[ex_name]["sets"].append(cs)
+
+    return list(seen.values())
+
+
 @router.get("/{scheduled_workout_id}", response_class=HTMLResponse)
 def workout_view(
     scheduled_workout_id: int,
@@ -172,6 +204,7 @@ def workout_view(
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     workout = _get_workout_or_404(scheduled_workout_id, current_user.id, db)
+    already_completed = workout.completed_at is not None
 
     planned_sets = (
         db.query(PlannedSet)
@@ -182,6 +215,7 @@ def workout_view(
     )
 
     exercise_groups = _build_exercise_groups(planned_sets, current_user.id, db)
+    completed_groups = _build_completed_groups(workout.id, db) if already_completed else []
 
     # All non-archived exercises for the substitution modal
     all_exercises = (
@@ -198,8 +232,9 @@ def workout_view(
             "user": current_user,
             "workout": workout,
             "exercise_groups": exercise_groups,
+            "completed_groups": completed_groups,
             "all_exercises": all_exercises,
-            "already_completed": workout.completed_at is not None,
+            "already_completed": already_completed,
         },
     )
 

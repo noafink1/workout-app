@@ -31,6 +31,54 @@
   </div>
 
   {# ── Exercise groups ─────────────────────────────────────────────────── #}
+  {% if already_completed %}
+
+  {# Completed workout: show actual logged sets grouped by exercise #}
+  {% for group in completed_groups %}
+  <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-gray-600 overflow-hidden">
+
+    {# Exercise header #}
+    <div class="px-4 py-3 border-b border-gray-800/80">
+      <h3 class="font-heading font-[700] text-[17px] uppercase tracking-[0.12em] text-white leading-none">
+        {{ group.exercise_name }}
+      </h3>
+    </div>
+
+    {# Completed set rows #}
+    {% for cs in group.sets %}
+    <div class="flex items-center gap-3 px-4 min-h-[52px] py-2
+                {% if not loop.last %}border-b border-gray-800/50{% endif %}">
+
+      <span class="font-mono text-[10px] uppercase tracking-widest text-gray-600 w-9 flex-shrink-0">
+        S{{ loop.index }}
+      </span>
+
+      <div class="flex-1 min-w-0">
+        {% if cs.actual_reps is not none %}
+        <span class="font-heading font-[700] text-[16px] uppercase tracking-[0.1em] text-gray-200">
+          {{ cs.actual_reps }}&nbsp;REP{{ 's' if cs.actual_reps != 1 else '' }}
+        </span>
+        {% else %}
+        <span class="font-mono text-[16px] text-gray-700">—</span>
+        {% endif %}
+      </div>
+
+      <div class="flex items-center gap-[6px] flex-shrink-0">
+        <span class="w-[76px] flex items-center justify-end font-mono text-[18px] font-[500]
+                     {% if cs.actual_weight_kg is not none %}text-gray-300{% else %}text-gray-700{% endif %} px-2">
+          {% if cs.actual_weight_kg is not none %}{{ "%.4g" % cs.actual_weight_kg }}{% else %}—{% endif %}
+        </span>
+        <span class="text-[11px] font-mono text-gray-600 w-5 text-left">kg</span>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  {% else %}
+
+  {# Active workout: show planned sets grouped by exercise+intensity #}
   {% for group in exercise_groups %}
   <div id="group-{{ loop.index0 }}"
        class="bg-[#1f2937] border border-gray-700/50 overflow-hidden
@@ -76,7 +124,6 @@
         {% endif %}
       </div>
 
-      {% if not already_completed %}
       <button type="button"
               onclick="openSubModal({{ loop.index0 }}, [{% for ps in group.sets %}{{ ps.id }}{% if not loop.last %},{% endif %}{% endfor %}])"
               class="flex-shrink-0 flex items-center gap-[5px] px-2 py-[5px] text-[9px] uppercase
@@ -87,7 +134,6 @@
         </svg>
         Sub
       </button>
-      {% endif %}
     </div>
 
     {# ── Set rows ── #}
@@ -124,9 +170,8 @@
           {% endif %}
         </div>
 
-        {# Weight input — the hero element #}
+        {# Weight input #}
         <div class="flex items-center gap-[6px] flex-shrink-0">
-          {% if not already_completed %}
           <input
             type="number"
             name="weight_kg_{{ ps.id }}"
@@ -147,9 +192,6 @@
                    [&::-webkit-outer-spin-button]:appearance-none
                    [&::-webkit-inner-spin-button]:appearance-none"
           >
-          {% else %}
-          <span class="w-[76px] h-12 flex items-center justify-end font-mono text-[18px] text-gray-600 px-2">—</span>
-          {% endif %}
           <span class="text-[11px] font-mono text-gray-600 w-5 text-left">kg</span>
         </div>
 
@@ -158,6 +200,8 @@
     {% endfor %}
   </div>
   {% endfor %}
+
+  {% endif %}
 
   {# ── Session notes ────────────────────────────────────────────────────── #}
   <div class="bg-[#1f2937] border border-gray-700/50 p-4">
