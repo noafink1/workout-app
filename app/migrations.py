@@ -18,3 +18,4 @@ def run_migrations() -> None:
             conn.commit()
         except Exception:
             pass  # column already exists
+

@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import (
-    AccessoryBest, Block, CompletedSet, Exercise, ExerciseCategory, IntensityType,
-    OneRepMax, PlannedSet, ProgramRun, ScheduledWorkout, TrainingDay, User,
+    AccessoryBest, Block, CompletedSet, Exercise, ExerciseCategory,
+    IntensityType, OneRepMax, PlannedSet, ProgramRun, ScheduledWorkout, TrainingDay, User,
 )
 from app.utils import calculate_weight
 
@@ -118,23 +118,24 @@ def _build_exercise_groups(
 def _get_workout_or_404(
     scheduled_workout_id: int, user_id: int, db: Session
 ) -> ScheduledWorkout:
-    """Load a ScheduledWorkout, verifying it belongs to the current user."""
+    """Load a ScheduledWorkout, verifying it belongs to the current user.
+
+    Raises 404 if the workout doesn't exist, 403 if it belongs to another user.
+    """
     workout = (
         db.query(ScheduledWorkout)
-        .join(ProgramRun, ScheduledWorkout.program_run_id == ProgramRun.id)
-        .filter(
-            ScheduledWorkout.id == scheduled_workout_id,
-            ProgramRun.user_id == user_id,
-        )
         .options(
             joinedload(ScheduledWorkout.block),
             joinedload(ScheduledWorkout.training_day),
             joinedload(ScheduledWorkout.program_run).joinedload(ProgramRun.program),
         )
+        .filter(ScheduledWorkout.id == scheduled_workout_id)
         .first()
     )
     if not workout:
         raise HTTPException(status_code=404, detail="Workout not found")
+    if workout.program_run.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Access forbidden")
     return workout
 
 
@@ -164,6 +165,48 @@ def today_redirect(
     return RedirectResponse(url="/", status_code=303)
 
 
+def _build_completed_groups(workout_id: int, db: Session) -> list[dict]:
+    """
+    Group CompletedSets for a finished workout by exercise name.
+    Planned sets (planned_set_id IS NOT NULL) come first ordered by plan position.
+    Unplanned sets added post-completion (planned_set_id IS NULL) follow, ordered by logged_at.
+    Respects substitutions: uses the substituted exercise name when present.
+    Returns a list of {exercise_name, sets} dicts.
+    """
+    all_sets = (
+        db.query(CompletedSet)
+        .options(
+            joinedload(CompletedSet.planned_set).joinedload(PlannedSet.exercise),
+            joinedload(CompletedSet.substituted_exercise),
+        )
+        .filter(CompletedSet.scheduled_workout_id == workout_id)
+        .all()
+    )
+
+    # Planned sets first (sorted by plan order), unplanned last (sorted by logged_at)
+    planned = [cs for cs in all_sets if cs.planned_set_id is not None]
+    unplanned = [cs for cs in all_sets if cs.planned_set_id is None]
+    planned.sort(key=lambda cs: (cs.planned_set.order, cs.planned_set.set_number))
+    unplanned.sort(key=lambda cs: (cs.logged_at, cs.id))
+
+    seen: dict[str, dict] = {}
+    for cs in planned + unplanned:
+        if cs.planned_set_id is not None:
+            ex_name = (
+                cs.substituted_exercise.name
+                if cs.substituted_exercise
+                else cs.planned_set.exercise.name
+            )
+        else:
+            # Unplanned set: exercise stored in substituted_exercise_id
+            ex_name = cs.substituted_exercise.name if cs.substituted_exercise else "Unknown"
+        if ex_name not in seen:
+            seen[ex_name] = {"exercise_name": ex_name, "sets": []}
+        seen[ex_name]["sets"].append(cs)
+
+    return list(seen.values())
+
+
 @router.get("/{scheduled_workout_id}", response_class=HTMLResponse)
 def workout_view(
     scheduled_workout_id: int,
@@ -172,6 +215,7 @@ def workout_view(
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     workout = _get_workout_or_404(scheduled_workout_id, current_user.id, db)
+    already_completed = workout.completed_at is not None
 
     planned_sets = (
         db.query(PlannedSet)
@@ -182,6 +226,7 @@ def workout_view(
     )
 
     exercise_groups = _build_exercise_groups(planned_sets, current_user.id, db)
+    completed_groups = _build_completed_groups(workout.id, db) if already_completed else []
 
     # All non-archived exercises for the substitution modal
     all_exercises = (
@@ -198,8 +243,9 @@ def workout_view(
             "user": current_user,
             "workout": workout,
             "exercise_groups": exercise_groups,
+            "completed_groups": completed_groups,
             "all_exercises": all_exercises,
-            "already_completed": workout.completed_at is not None,
+            "already_completed": already_completed,
         },
     )
 
@@ -298,3 +344,109 @@ async def complete_workout(
     db.commit()
 
     return RedirectResponse(url="/", status_code=303)
+
+
+@router.post("/{scheduled_workout_id}/add-exercise")
+async def add_exercise_to_workout(
+    scheduled_workout_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    """Add extra sets for a chosen exercise to an existing (completed) workout."""
+    workout = _get_workout_or_404(scheduled_workout_id, current_user.id, db)
+
+    form = await request.form()
+    exercise_id_str = str(form.get("exercise_id", "")).strip()
+    if not exercise_id_str:
+        return RedirectResponse(url=f"/workouts/{scheduled_workout_id}", status_code=303)
+
+    try:
+        exercise_id = int(exercise_id_str)
+    except ValueError:
+        return RedirectResponse(url=f"/workouts/{scheduled_workout_id}", status_code=303)
+
+    exercise = (
+        db.query(Exercise)
+        .filter(Exercise.id == exercise_id, Exercise.is_archived == False)  # noqa: E712
+        .first()
+    )
+    if not exercise:
+        return RedirectResponse(url=f"/workouts/{scheduled_workout_id}", status_code=303)
+
+    reps_list = form.getlist("reps")
+    weight_list = form.getlist("weight_kg")
+    rpe_list = form.getlist("rpe")
+
+    for i, reps_raw in enumerate(reps_list):
+        reps_str = str(reps_raw).strip()
+        weight_str = str(weight_list[i]).strip() if i < len(weight_list) else ""
+        rpe_str = str(rpe_list[i]).strip() if i < len(rpe_list) else ""
+
+        actual_reps: Optional[int] = int(reps_str) if reps_str else None
+        actual_weight: Optional[float] = float(weight_str) if weight_str else None
+        notes: Optional[str] = f"RPE {rpe_str}" if rpe_str else None
+
+        db.add(CompletedSet(
+            scheduled_workout_id=workout.id,
+            planned_set_id=None,
+            substituted_exercise_id=exercise_id,
+            actual_weight_kg=actual_weight,
+            actual_reps=actual_reps,
+            was_modified=False,
+            notes=notes,
+        ))
+
+    db.commit()
+    return RedirectResponse(url=f"/workouts/{scheduled_workout_id}?added=1", status_code=303)
+
+
+@router.post("/{scheduled_workout_id}/update-set/{completed_set_id}")
+async def update_completed_set(
+    scheduled_workout_id: int,
+    completed_set_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    """Edit reps and/or weight on an existing CompletedSet."""
+    workout = _get_workout_or_404(scheduled_workout_id, current_user.id, db)
+
+    cs = (
+        db.query(CompletedSet)
+        .filter(
+            CompletedSet.id == completed_set_id,
+            CompletedSet.scheduled_workout_id == workout.id,
+        )
+        .first()
+    )
+    if not cs:
+        raise HTTPException(status_code=404, detail="Set not found")
+
+    form = await request.form()
+    reps_str = str(form.get("actual_reps", "")).strip()
+    weight_str = str(form.get("actual_weight_kg", "")).strip()
+
+    cs.actual_reps = int(reps_str) if reps_str else None
+    cs.actual_weight_kg = float(weight_str) if weight_str else None
+    db.commit()
+
+    return RedirectResponse(url=f"/workouts/{scheduled_workout_id}", status_code=303)
+
+
+@router.post("/{scheduled_workout_id}/add-comment")
+async def add_comment_to_workout(
+    scheduled_workout_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    """Update the session notes / comment on a workout."""
+    workout = _get_workout_or_404(scheduled_workout_id, current_user.id, db)
+
+    form = await request.form()
+    comment = str(form.get("comment", "")).strip()
+    workout.session_notes = comment or None
+    db.commit()
+
+    return RedirectResponse(url=f"/workouts/{scheduled_workout_id}?commented=1", status_code=303)
