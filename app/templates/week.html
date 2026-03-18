@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Weekly View — PowerBuilding{% endblock %}
+
+{% block content %}
+<div class="px-5 py-8 lg:px-10 lg:py-12 max-w-5xl">
+
+  {# ── Page header ─────────────────────────────────────────────────────────── #}
+  <div class="mb-8 border-b border-gray-800 pb-6">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-2 font-mono">This Week</p>
+    <h1 class="font-heading font-[800] text-[48px] lg:text-[56px] uppercase tracking-[0.08em] text-white leading-none">
+      {{ week_label }}
+    </h1>
+  </div>
+
+  {# ── Horizontal day strip (Mon–Sun) ──────────────────────────────────────── #}
+  <div class="mb-8">
+    <div class="grid grid-cols-7 gap-1.5">
+      {% for day, day_workouts in workouts_by_day.items() %}
+      {% set active = day_workouts | length > 0 %}
+      <div class="flex flex-col items-center gap-1 py-3
+                  border {% if active %}border-accent bg-accent/10{% else %}border-gray-800 bg-[#1a2234]{% endif %}">
+        <span class="font-heading font-[700] text-[11px] lg:text-[13px] uppercase tracking-[0.18em]
+                     {% if active %}text-accent{% else %}text-gray-700{% endif %}">
+          {{ day }}
+        </span>
+        <span class="w-1.5 h-1.5 rounded-full {% if active %}bg-accent{% else %}bg-gray-800{% endif %}"></span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Workout cards (days with workouts only) ──────────────────────────────── #}
+  {% set ns = namespace(has_any=false) %}
+  {% for dw in workouts_by_day.values() %}{% if dw %}{% set ns.has_any = true %}{% endif %}{% endfor %}
+
+  <div class="mb-10">
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-4 font-mono">
+      Workouts · Day by Day
+    </p>
+
+    {% if ns.has_any %}
+    <div class="space-y-3">
+      {% for day, day_workouts in workouts_by_day.items() %}
+      {% if day_workouts %}
+      <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-accent">
+
+        {# Day + workout name header #}
+        <div class="flex items-center gap-4 px-5 py-4 border-b border-gray-800/60">
+          <span class="font-heading font-[800] text-[24px] uppercase tracking-[0.12em] text-accent w-12 flex-shrink-0 leading-none">
+            {{ day }}
+          </span>
+          <div class="flex-1">
+            {% for w in day_workouts %}
+            <p class="font-heading font-[700] text-[14px] uppercase tracking-[0.14em] text-white leading-snug">
+              {{ w.training_day.name if w.training_day else 'Workout' }}
+            </p>
+            {% endfor %}
+          </div>
+          {% for w in day_workouts %}
+          {% if w.completed_at %}
+          <span class="font-mono text-[10px] text-green-400 tracking-wider">✓ Done</span>
+          {% endif %}
+          {% endfor %}
+        </div>
+
+        {# Exercise list — planned sets grouped by exercise name #}
+        {% for w in day_workouts %}
+        {% if w.training_day and w.training_day.planned_sets %}
+        <div class="px-5 py-4 {% if not loop.last %}border-b border-gray-800/40{% endif %}">
+          {% for exercise_name, sets in w.training_day.planned_sets | groupby("exercise.name") %}
+          {% set sets_list = sets | list %}
+          <div class="{% if not loop.last %}mb-3{% endif %}">
+            <p class="text-[10px] uppercase tracking-[0.18em] text-gray-500 font-heading font-[700] mb-1">
+              {{ exercise_name }}
+            </p>
+            <div class="flex flex-wrap gap-x-4 gap-y-0.5">
+              {% set all_same_reps = (sets_list | map(attribute='reps') | list | unique | list | length) == 1 %}
+              {% if all_same_reps and sets_list[0].reps %}
+              <span class="font-mono text-[12px] text-white">{{ sets_list | length }} × {{ sets_list[0].reps }} reps</span>
+              {% else %}
+              {% for ps in sets_list %}
+              <span class="font-mono text-[12px] text-white">{{ ps.reps if ps.reps else '?' }} reps</span>
+              {% endfor %}
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endfor %}
+
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="bg-[#1f2937] border border-gray-800 p-8 text-center">
+      <p class="font-heading font-[700] text-[13px] uppercase tracking-[0.25em] text-gray-600 mb-2">
+        No Workouts Scheduled
+      </p>
+      <p class="text-[11px] text-gray-700 font-mono">
+        No workouts planned for this week.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Planned sets by muscle group (horizontal bar chart) ─────────────────── #}
+  <div>
+    <p class="text-[10px] uppercase tracking-[0.3em] text-gray-600 mb-4 font-mono">
+      Sets · By Muscle Group
+    </p>
+    {% if muscle_sets %}
+    <div class="bg-[#1f2937] border border-gray-700/50 p-5">
+      <div class="relative" style="height: {{ [(muscle_sets | length) * 44 + 20, 120] | max }}px;">
+        <canvas id="muscle-sets-chart"></canvas>
+      </div>
+    </div>
+    {% else %}
+    <div class="bg-[#1f2937] border border-gray-800 p-8 text-center">
+      <p class="text-[12px] text-gray-600 font-mono">No workouts scheduled this week.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+{% if muscle_sets %}
+const MUSCLE_SETS = {{ muscle_sets | tojson }};
+
+const MG_COLORS = {
+  chest:     { bg: 'rgba(232, 93,  4,   0.80)', border: '#e85d04' },
+  back:      { bg: 'rgba(59,  130, 246,  0.80)', border: '#3b82f6' },
+  legs:      { bg: 'rgba(139, 92,  246,  0.80)', border: '#8b5cf6' },
+  shoulders: { bg: 'rgba(34,  197, 94,   0.80)', border: '#22c55e' },
+  arms:      { bg: 'rgba(234, 179, 8,    0.80)', border: '#eab308' },
+  core:      { bg: 'rgba(239, 68,  68,   0.80)', border: '#ef4444' },
+};
+
+const TOOLTIP_STYLE = {
+  backgroundColor: '#0b1120',
+  borderColor: '#374151',
+  borderWidth: 1,
+  titleColor: '#6b7280',
+  bodyColor: '#ffffff',
+  padding: 10,
+  titleFont: { family: "'DM Mono', monospace", size: 10 },
+  bodyFont:  { family: "'DM Mono', monospace", size: 12 },
+};
+
+const AXIS_STYLE = {
+  grid:   { color: 'rgba(255,255,255,0.035)' },
+  border: { color: 'rgba(255,255,255,0.06)' },
+  ticks: {
+    color: '#4b5563',
+    font:  { family: "'DM Mono', monospace", size: 10 },
+    maxRotation: 0,
+  },
+};
+
+// Sort by set count descending (highest at top for horizontal chart)
+const entries = Object.entries(MUSCLE_SETS).sort((a, b) => b[1] - a[1]);
+const labels       = entries.map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
+const values       = entries.map(([, v]) => v);
+const keys         = entries.map(([k]) => k);
+const bgColors     = keys.map(k => (MG_COLORS[k] || { bg:     'rgba(107,114,128,0.7)' }).bg);
+const borderColors = keys.map(k => (MG_COLORS[k] || { border: '#6b7280'              }).border);
+
+const canvas = document.getElementById('muscle-sets-chart');
+if (canvas) {
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: bgColors,
+        borderColor: borderColors,
+        borderWidth: 1,
+        borderRadius: 2,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...TOOLTIP_STYLE,
+          callbacks: {
+            label: ctx => `  ${Math.round(ctx.parsed.x)} sets`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ...AXIS_STYLE,
+          ticks: {
+            ...AXIS_STYLE.ticks,
+            callback: v => Number.isInteger(v) ? v : '',
+          },
+        },
+        y: { ...AXIS_STYLE },
+      },
+    },
+  });
+}
+{% endif %}
+</script>
+{% endblock %}

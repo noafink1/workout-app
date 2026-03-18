@@ -42,3 +42,4 @@ memory/
 
 # Dev-only seed scripts (not needed in production)
 seed_workout.py
+.maistro/
