@@ -6,8 +6,6 @@ Routes:
 """
 from collections import defaultdict
 from datetime import date, timedelta
-from typing import Optional
-
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -16,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import (
-    CompletedSet, Exercise, PlannedSet, ProgramRun, ScheduledWorkout, User,
+    PlannedSet, ProgramRun, ScheduledWorkout, TrainingDay, User,
 )
 
 router = APIRouter(prefix="/week", tags=["week"])
@@ -43,29 +41,21 @@ def week_label(monday: date, sunday: date) -> str:
     return f"Week {week_num} · {date_range}"
 
 
-def compute_muscle_volume(
-    completed_sets: list[CompletedSet],
-) -> dict[str, float]:
+def compute_muscle_sets(workouts: list[ScheduledWorkout]) -> dict[str, int]:
     """
-    Given a list of CompletedSet ORM objects (with planned_set.exercise loaded),
-    return a dict mapping muscle_group -> total_volume (sets × reps × weight_kg).
+    Given a list of ScheduledWorkout ORM objects (with training_day.planned_sets.exercise loaded),
+    return a dict mapping muscle_group -> total planned set count.
 
-    Sets without a weight or reps recorded are skipped.
-    Sets where the exercise has no muscle_group are skipped.
+    PlannedSets whose exercise has no muscle_group are skipped.
     """
-    volume: dict[str, float] = defaultdict(float)
-    for cs in completed_sets:
-        if cs.actual_weight_kg is None or cs.actual_reps is None:
+    counts: dict[str, int] = defaultdict(int)
+    for workout in workouts:
+        if workout.training_day is None:
             continue
-        # Substituted exercise takes priority for muscle group resolution
-        exercise: Optional[Exercise] = (
-            cs.substituted_exercise if cs.substituted_exercise_id else cs.planned_set.exercise
-        )
-        if exercise is None or exercise.muscle_group is None:
-            continue
-        mg = exercise.muscle_group.value
-        volume[mg] += cs.actual_reps * cs.actual_weight_kg
-    return dict(volume)
+        for ps in workout.training_day.planned_sets:
+            if ps.exercise and ps.exercise.muscle_group:
+                counts[ps.exercise.muscle_group.value] += 1
+    return dict(counts)
 
 
 @router.get("", response_class=HTMLResponse)
@@ -78,7 +68,7 @@ def week_page(
     monday, sunday = week_bounds(today)
     label = week_label(monday, sunday)
 
-    # ── All completed workouts this week for this user ────────────────────────
+    # ── All scheduled (non-skipped) workouts this week for this user ─────────
     workouts = (
         db.query(ScheduledWorkout)
         .join(ProgramRun, ScheduledWorkout.program_run_id == ProgramRun.id)
@@ -86,17 +76,13 @@ def week_page(
             ProgramRun.user_id == current_user.id,
             ScheduledWorkout.scheduled_date >= monday,
             ScheduledWorkout.scheduled_date <= sunday,
-            ScheduledWorkout.completed_at.isnot(None),
+            ScheduledWorkout.skipped.is_(False),
         )
         .options(
-            joinedload(ScheduledWorkout.training_day),
+            joinedload(ScheduledWorkout.training_day)
+                .joinedload(TrainingDay.planned_sets)
+                .joinedload(PlannedSet.exercise),
             joinedload(ScheduledWorkout.block),
-            joinedload(ScheduledWorkout.completed_sets).joinedload(
-                CompletedSet.planned_set
-            ).joinedload(PlannedSet.exercise),
-            joinedload(ScheduledWorkout.completed_sets).joinedload(
-                CompletedSet.substituted_exercise
-            ),
         )
         .order_by(ScheduledWorkout.scheduled_date)
         .all()
@@ -106,15 +92,13 @@ def week_page(
     workouts_by_day: dict[str, list[ScheduledWorkout]] = {
         day: [] for day in _DAY_NAMES
     }
-    all_completed_sets: list[CompletedSet] = []
 
     for workout in workouts:
         day_name = _DAY_NAMES[workout.scheduled_date.weekday()]
         workouts_by_day[day_name].append(workout)
-        all_completed_sets.extend(workout.completed_sets)
 
-    # ── Volume per muscle group ───────────────────────────────────────────────
-    muscle_volume = compute_muscle_volume(all_completed_sets)
+    # ── Planned set count per muscle group ───────────────────────────────────
+    muscle_sets = compute_muscle_sets(workouts)
 
     return templates.TemplateResponse(
         "week.html",
@@ -123,6 +107,6 @@ def week_page(
             "user": current_user,
             "week_label": label,
             "workouts_by_day": workouts_by_day,
-            "muscle_volume": muscle_volume,
+            "muscle_sets": muscle_sets,
         },
     )
