@@ -61,20 +61,18 @@ def _build_exercise_groups(
     db: Session,
 ) -> list[dict]:
     """
-    Group consecutive planned sets by (exercise_id, intensity_type, intensity_value).
-    Calculates weights for percentage-based sets and fetches last-used weights for accessories.
+    Group planned sets by exercise_id only.
+    Calculates per-set weights and fetches last-used weights for accessories.
     """
     groups: list[dict] = []
     current: Optional[dict] = None
 
     for ps in planned_sets:
-        key = (ps.exercise_id, ps.intensity_type, ps.intensity_value)
+        key = ps.exercise_id
         if current is None or current["key"] != key:
             if current:
                 groups.append(current)
 
-            # Determine display weight / pre-fill weight
-            calculated_weight: Optional[float] = None
             one_rm_used: Optional[float] = None
             missing_1rm = False
             rm_exercise_name: Optional[str] = None
@@ -85,9 +83,7 @@ def _build_exercise_groups(
                     ref_ex = db.query(Exercise).filter(Exercise.id == ps.exercise.reference_exercise_id).first()
                     rm_exercise_name = ref_ex.name if ref_ex else None
                 one_rm_used = _get_current_1rm(user_id, rm_exercise_id, db)
-                if one_rm_used:
-                    calculated_weight = calculate_weight(one_rm_used, ps.intensity_value)
-                else:
+                if not one_rm_used:
                     missing_1rm = True
 
             last_weight: Optional[float] = None
@@ -97,15 +93,37 @@ def _build_exercise_groups(
             current = {
                 "key": key,
                 "exercise": ps.exercise,
-                "intensity_type": ps.intensity_type,
-                "intensity_value": ps.intensity_value,
-                "calculated_weight": calculated_weight,
                 "one_rm_used": one_rm_used,
                 "missing_1rm": missing_1rm,
                 "rm_exercise_name": rm_exercise_name,
                 "last_weight": last_weight,
+                "set_weights": {},
                 "sets": [],
             }
+        else:
+            # For subsequent sets in the same group, check if 1RM lookup is needed
+            if (
+                ps.intensity_type == IntensityType.percentage
+                and ps.intensity_value
+                and current["one_rm_used"] is None
+                and not current["missing_1rm"]
+            ):
+                rm_exercise_id = ps.exercise.reference_exercise_id or ps.exercise_id
+                current["one_rm_used"] = _get_current_1rm(user_id, rm_exercise_id, db)
+                if not current["one_rm_used"]:
+                    current["missing_1rm"] = True
+
+        # Calculate per-set weight
+        calc_w: Optional[float] = None
+        if ps.intensity_type == IntensityType.percentage and ps.intensity_value and current["one_rm_used"]:
+            calc_w = calculate_weight(current["one_rm_used"], ps.intensity_value)
+        elif ps.intensity_type != IntensityType.percentage:
+            calc_w = current["last_weight"]
+        current["set_weights"][ps.id] = calc_w
+
+        # Mark missing_1rm if any percentage set has no 1RM
+        if ps.intensity_type == IntensityType.percentage and ps.intensity_value and current["one_rm_used"] is None:
+            current["missing_1rm"] = True
 
         current["sets"].append(ps)
 
