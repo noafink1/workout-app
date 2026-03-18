@@ -3,7 +3,7 @@
 {% block title %}{{ workout.training_day.name }} — PowerBuilding{% endblock %}
 
 {% block content %}
-<form action="/workouts/{{ workout.id }}/complete" method="POST" id="workout-form">
+{% if not already_completed %}<form action="/workouts/{{ workout.id }}/complete" method="POST" id="workout-form">{% endif %}
 <div class="px-4 py-6 lg:px-10 lg:py-10 max-w-2xl space-y-3">
 
   {# ── Header ──────────────────────────────────────────────────────────── #}
@@ -33,7 +33,7 @@
   {# ── Exercise groups ─────────────────────────────────────────────────── #}
   {% if already_completed %}
 
-  {# Completed workout: show actual logged sets grouped by exercise #}
+  {# Completed workout: editable set rows grouped by exercise #}
   {% for group in completed_groups %}
   <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-gray-600 overflow-hidden">
 
@@ -44,37 +44,141 @@
       </h3>
     </div>
 
-    {# Completed set rows #}
+    {# Editable set rows — each is its own mini-form #}
     {% for cs in group.sets %}
-    <div class="flex items-center gap-3 px-4 min-h-[52px] py-2
-                {% if not loop.last %}border-b border-gray-800/50{% endif %}">
+    <form action="/workouts/{{ workout.id }}/update-set/{{ cs.id }}" method="POST"
+          class="flex items-center gap-3 px-4 min-h-[56px] py-2
+                 {% if not loop.last %}border-b border-gray-800/50{% endif %}">
 
       <span class="font-mono text-[10px] uppercase tracking-widest text-gray-600 w-9 flex-shrink-0">
         S{{ loop.index }}
       </span>
 
-      <div class="flex-1 min-w-0">
-        {% if cs.actual_reps is not none %}
-        <span class="font-heading font-[700] text-[16px] uppercase tracking-[0.1em] text-gray-200">
-          {{ cs.actual_reps }}&nbsp;REP{{ 's' if cs.actual_reps != 1 else '' }}
-        </span>
-        {% else %}
-        <span class="font-mono text-[16px] text-gray-700">—</span>
-        {% endif %}
+      <div class="flex-1 min-w-0 flex items-center gap-2">
+        <input
+          type="number"
+          name="actual_reps"
+          min="0"
+          max="999"
+          value="{{ cs.actual_reps if cs.actual_reps is not none else '' }}"
+          placeholder="—"
+          class="w-14 h-10 text-right px-2 bg-[#111827] border border-gray-700
+                 text-white font-heading font-[700] text-[15px] rounded-[2px]
+                 focus:outline-none focus:border-accent transition-all
+                 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
+                 [&::-webkit-inner-spin-button]:appearance-none"
+        >
+        <span class="text-[11px] font-mono text-gray-600">reps</span>
       </div>
 
       <div class="flex items-center gap-[6px] flex-shrink-0">
-        <span class="w-[76px] flex items-center justify-end font-mono text-[18px] font-[500]
-                     {% if cs.actual_weight_kg is not none %}text-gray-300{% else %}text-gray-700{% endif %} px-2">
-          {% if cs.actual_weight_kg is not none %}{{ "%.4g" % cs.actual_weight_kg }}{% else %}—{% endif %}
-        </span>
+        <input
+          type="number"
+          name="actual_weight_kg"
+          step="1.25"
+          min="0"
+          max="500"
+          value="{{ '%.4g' % cs.actual_weight_kg if cs.actual_weight_kg is not none else '' }}"
+          placeholder="—"
+          class="w-[76px] h-10 text-right px-2 bg-[#111827] border border-gray-700
+                 text-white font-mono text-[16px] font-[500] rounded-[2px]
+                 focus:outline-none focus:border-accent transition-all
+                 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
+                 [&::-webkit-inner-spin-button]:appearance-none"
+        >
         <span class="text-[11px] font-mono text-gray-600 w-5 text-left">kg</span>
       </div>
 
-    </div>
+      <button type="submit"
+              class="flex-shrink-0 w-8 h-8 flex items-center justify-center
+                     text-gray-600 hover:text-accent border border-gray-700/80
+                     hover:border-accent/60 rounded-[2px] transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+      </button>
+
+    </form>
     {% endfor %}
   </div>
   {% endfor %}
+
+  {# ── Add Exercise panel ───────────────────────────────────────────── #}
+  <div class="bg-[#1f2937] border border-gray-700/50">
+    <button type="button" onclick="toggleAddExercise()"
+            class="w-full flex items-center justify-between px-4 py-3
+                   text-gray-500 hover:text-gray-300 transition-colors group">
+      <span class="flex items-center gap-2 font-heading font-[700] text-[12px] uppercase tracking-[0.18em]">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Add Exercise
+      </span>
+      <svg id="add-ex-chevron" class="w-4 h-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+
+    <div id="add-exercise-panel" class="hidden border-t border-gray-800">
+      <form action="/workouts/{{ workout.id }}/add-exercise" method="POST" id="add-ex-form">
+        <div class="px-4 py-4 space-y-4">
+
+          {# Exercise picker #}
+          <div>
+            <label class="text-[10px] uppercase tracking-[0.2em] text-gray-600 font-mono mb-1 block">Exercise</label>
+            <select name="exercise_id" required
+                    class="w-full h-10 px-3 bg-[#111827] border border-gray-700 text-white
+                           text-[13px] font-mono rounded-[2px] focus:outline-none focus:border-accent transition-all">
+              <option value="">Select exercise...</option>
+              <optgroup label="Main Lifts">
+                {% for ex in all_exercises %}{% if ex.category == 'main_lift' %}
+                <option value="{{ ex.id }}">{{ ex.name }}</option>
+                {% endif %}{% endfor %}
+              </optgroup>
+              <optgroup label="Accessories">
+                {% for ex in all_exercises %}{% if ex.category == 'accessory' %}
+                <option value="{{ ex.id }}">{{ ex.name }}</option>
+                {% endif %}{% endfor %}
+              </optgroup>
+            </select>
+          </div>
+
+          {# Set rows #}
+          <div id="add-ex-sets" class="space-y-2">
+            <label class="text-[10px] uppercase tracking-[0.2em] text-gray-600 font-mono block">Sets</label>
+            <div class="add-ex-set-row flex items-center gap-2">
+              <span class="font-mono text-[10px] text-gray-600 w-6">S1</span>
+              <input type="number" name="reps" placeholder="reps" min="0" max="999"
+                     class="w-16 h-9 text-right px-2 bg-[#111827] border border-gray-700 text-white
+                            font-mono text-[13px] rounded-[2px] focus:outline-none focus:border-accent transition-all
+                            [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
+                            [&::-webkit-inner-spin-button]:appearance-none">
+              <input type="number" name="weight_kg" placeholder="kg" step="1.25" min="0" max="500"
+                     class="w-20 h-9 text-right px-2 bg-[#111827] border border-gray-700 text-white
+                            font-mono text-[13px] rounded-[2px] focus:outline-none focus:border-accent transition-all
+                            [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
+                            [&::-webkit-inner-spin-button]:appearance-none">
+              <span class="font-mono text-[11px] text-gray-600">kg</span>
+            </div>
+          </div>
+
+          <button type="button" onclick="addExerciseSetRow()"
+                  class="text-[11px] font-mono text-gray-600 hover:text-gray-400 transition-colors">
+            + Add set
+          </button>
+        </div>
+
+        <div class="px-4 pb-4">
+          <button type="submit"
+                  class="w-full h-11 bg-gray-800 hover:bg-gray-700 border border-gray-600
+                         text-white font-heading font-[700] text-[12px] uppercase tracking-[0.2em]
+                         rounded-[2px] transition-colors">
+            Save Exercise
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   {% else %}
 
@@ -204,24 +308,37 @@
   {% endif %}
 
   {# ── Session notes ────────────────────────────────────────────────────── #}
+  {% if already_completed %}
+  <form action="/workouts/{{ workout.id }}/add-comment" method="POST">
+  {% endif %}
   <div class="bg-[#1f2937] border border-gray-700/50 p-4">
     <label class="flex items-center justify-between mb-3">
       <span class="text-[10px] uppercase tracking-[0.25em] text-gray-600 font-mono">Session Notes</span>
       <span class="text-[10px] font-mono text-gray-700" id="notes-counter">0 / 2000</span>
     </label>
     <textarea
-      name="session_notes"
+      name="{% if already_completed %}comment{% else %}session_notes{% endif %}"
       id="session-notes"
       rows="3"
       maxlength="2000"
       placeholder="How did it feel? Anything to note... (optional)"
-      {% if already_completed %}readonly{% endif %}
       class="w-full bg-[#111827] border border-gray-700 text-gray-300 text-[13px] font-mono
              rounded-[2px] px-3 py-3 resize-none leading-relaxed
              focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20
-             transition-all placeholder-gray-700 read-only:opacity-50"
-    ></textarea>
+             transition-all placeholder-gray-700"
+    >{% if workout.session_notes %}{{ workout.session_notes }}{% endif %}</textarea>
+    {% if already_completed %}
+    <button type="submit"
+            class="mt-3 px-4 h-9 bg-gray-800 hover:bg-gray-700 border border-gray-600
+                   text-white font-heading font-[700] text-[11px] uppercase tracking-[0.2em]
+                   rounded-[2px] transition-colors">
+      Save Notes
+    </button>
+    {% endif %}
   </div>
+  {% if already_completed %}
+  </form>
+  {% endif %}
 
   {# ── Complete / Already completed block ───────────────────────────────── #}
   {% if already_completed %}
@@ -252,7 +369,7 @@
   {% endif %}
 
 </div>
-</form>
+{% if not already_completed %}</form>{% endif %}
 
 {# ── Substitution modal — outside form, JS updates hidden inputs inside form ── #}
 <div id="sub-modal"
@@ -376,6 +493,7 @@
   const notesEl   = document.getElementById('session-notes');
   const counterEl = document.getElementById('notes-counter');
   if (notesEl && counterEl) {
+    counterEl.textContent = notesEl.value.length + ' / 2000';
     notesEl.addEventListener('input', () => {
       counterEl.textContent = notesEl.value.length + ' / 2000';
     });
@@ -389,5 +507,36 @@
       btn.textContent = 'Saving...';
     }
   });
+
+  // ── Add Exercise panel ───────────────────────────────────────────────────
+  function toggleAddExercise() {
+    const panel = document.getElementById('add-exercise-panel');
+    const chevron = document.getElementById('add-ex-chevron');
+    const open = panel.classList.toggle('hidden');
+    chevron.style.transform = open ? '' : 'rotate(180deg)';
+  }
+
+  let _addExSetCount = 1;
+  function addExerciseSetRow() {
+    _addExSetCount++;
+    const container = document.getElementById('add-ex-sets');
+    const row = document.createElement('div');
+    row.className = 'add-ex-set-row flex items-center gap-2';
+    row.innerHTML = `
+      <span class="font-mono text-[10px] text-gray-600 w-6">S${_addExSetCount}</span>
+      <input type="number" name="reps" placeholder="reps" min="0" max="999"
+             class="w-16 h-9 text-right px-2 bg-[#111827] border border-gray-700 text-white
+                    font-mono text-[13px] rounded-[2px] focus:outline-none focus:border-accent transition-all
+                    [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
+                    [&::-webkit-inner-spin-button]:appearance-none">
+      <input type="number" name="weight_kg" placeholder="kg" step="1.25" min="0" max="500"
+             class="w-20 h-9 text-right px-2 bg-[#111827] border border-gray-700 text-white
+                    font-mono text-[13px] rounded-[2px] focus:outline-none focus:border-accent transition-all
+                    [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
+                    [&::-webkit-inner-spin-button]:appearance-none">
+      <span class="font-mono text-[11px] text-gray-600">kg</span>
+    `;
+    container.appendChild(row);
+  }
 </script>
 {% endblock %}

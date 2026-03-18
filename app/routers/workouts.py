@@ -401,6 +401,39 @@ async def add_exercise_to_workout(
     return RedirectResponse(url=f"/workouts/{scheduled_workout_id}?added=1", status_code=303)
 
 
+@router.post("/{scheduled_workout_id}/update-set/{completed_set_id}")
+async def update_completed_set(
+    scheduled_workout_id: int,
+    completed_set_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    """Edit reps and/or weight on an existing CompletedSet."""
+    workout = _get_workout_or_404(scheduled_workout_id, current_user.id, db)
+
+    cs = (
+        db.query(CompletedSet)
+        .filter(
+            CompletedSet.id == completed_set_id,
+            CompletedSet.scheduled_workout_id == workout.id,
+        )
+        .first()
+    )
+    if not cs:
+        raise HTTPException(status_code=404, detail="Set not found")
+
+    form = await request.form()
+    reps_str = str(form.get("actual_reps", "")).strip()
+    weight_str = str(form.get("actual_weight_kg", "")).strip()
+
+    cs.actual_reps = int(reps_str) if reps_str else None
+    cs.actual_weight_kg = float(weight_str) if weight_str else None
+    db.commit()
+
+    return RedirectResponse(url=f"/workouts/{scheduled_workout_id}", status_code=303)
+
+
 @router.post("/{scheduled_workout_id}/add-comment")
 async def add_comment_to_workout(
     scheduled_workout_id: int,
