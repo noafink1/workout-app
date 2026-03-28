@@ -289,6 +289,29 @@
   </div>
   {% endfor %}
 
+  {# Extra exercises added mid-workout (not part of plan) #}
+  {% for group in extra_groups %}
+  <div class="bg-[#1f2937] border border-gray-700/50 border-l-[3px] border-l-green-800/60 overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-800/80">
+      <h3 class="font-heading font-[700] text-[17px] uppercase tracking-[0.12em] text-white leading-none">
+        {{ group.exercise_name }}
+      </h3>
+      <span class="text-[9px] font-mono text-green-700 uppercase tracking-[0.18em]">Added</span>
+    </div>
+    {% for cs in group.sets %}
+    <div class="flex items-center gap-3 px-4 min-h-[48px] {% if not loop.last %}border-b border-gray-800/50{% endif %}">
+      <span class="font-mono text-[10px] uppercase tracking-widest text-gray-600 w-9 flex-shrink-0">S{{ loop.index }}</span>
+      <span class="flex-1 font-heading font-[700] text-[16px] uppercase tracking-[0.1em] text-gray-200">
+        {{ cs.actual_reps if cs.actual_reps is not none else '—' }}&nbsp;reps
+      </span>
+      {% if cs.actual_weight_kg is not none %}
+      <span class="font-mono text-[14px] text-gray-400">{{ "%.4g" % cs.actual_weight_kg }}kg</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
   {# Add Exercise button — opens modal #}
   <button type="button" onclick="openAddExModal()"
           class="w-full bg-[#1f2937] border border-gray-700/50 flex items-center justify-center

@@ -183,6 +183,30 @@ def today_redirect(
     return RedirectResponse(url="/", status_code=303)
 
 
+def _build_extra_groups(workout_id: int, db: Session) -> list[dict]:
+    """
+    Return groups for unplanned sets added to a workout (planned_set_id IS NULL).
+    Used to show extra exercises in the active-workout view before completion.
+    """
+    unplanned = (
+        db.query(CompletedSet)
+        .options(joinedload(CompletedSet.substituted_exercise))
+        .filter(
+            CompletedSet.scheduled_workout_id == workout_id,
+            CompletedSet.planned_set_id == None,  # noqa: E711
+        )
+        .order_by(CompletedSet.logged_at, CompletedSet.id)
+        .all()
+    )
+    seen: dict[str, dict] = {}
+    for cs in unplanned:
+        ex_name = cs.substituted_exercise.name if cs.substituted_exercise else "Unknown"
+        if ex_name not in seen:
+            seen[ex_name] = {"exercise_name": ex_name, "sets": []}
+        seen[ex_name]["sets"].append(cs)
+    return list(seen.values())
+
+
 def _build_completed_groups(workout_id: int, db: Session) -> list[dict]:
     """
     Group CompletedSets for a finished workout by exercise name.
@@ -245,6 +269,7 @@ def workout_view(
 
     exercise_groups = _build_exercise_groups(planned_sets, current_user.id, db)
     completed_groups = _build_completed_groups(workout.id, db) if already_completed else []
+    extra_groups = _build_extra_groups(workout.id, db) if not already_completed else []
 
     # All non-archived exercises for the substitution modal
     all_exercises = (
@@ -264,6 +289,7 @@ def workout_view(
             "completed_groups": completed_groups,
             "all_exercises": all_exercises,
             "already_completed": already_completed,
+            "extra_groups": extra_groups,
         },
     )
 
