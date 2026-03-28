@@ -4,6 +4,8 @@ SQLAlchemy ORM models for the PowerBuilding Workout Tracker.
 Data retention rule: Never hard-delete training history.
 Use is_archived flags on programs and exercises instead of DELETE.
 """
+from __future__ import annotations
+
 import enum
 from datetime import date, datetime
 from typing import Optional
