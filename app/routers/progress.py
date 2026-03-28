@@ -91,7 +91,8 @@ def progress_page(
     week_mondays = [current_monday - timedelta(weeks=i) for i in range(7, -1, -1)]
     eight_weeks_ago = week_mondays[0]
 
-    volume_rows = (
+    # Planned sets (exercise resolved via PlannedSet)
+    planned_volume = (
         db.query(
             ScheduledWorkout.scheduled_date,
             Exercise.muscle_group,
@@ -110,6 +111,29 @@ def progress_page(
         .group_by(ScheduledWorkout.scheduled_date, Exercise.muscle_group)
         .all()
     )
+
+    # Unplanned sets added to a workout (exercise resolved via substituted_exercise_id)
+    unplanned_volume = (
+        db.query(
+            ScheduledWorkout.scheduled_date,
+            Exercise.muscle_group,
+            func.count(CompletedSet.id).label("cnt"),
+        )
+        .join(CompletedSet, CompletedSet.scheduled_workout_id == ScheduledWorkout.id)
+        .join(Exercise, CompletedSet.substituted_exercise_id == Exercise.id)
+        .join(ProgramRun, ScheduledWorkout.program_run_id == ProgramRun.id)
+        .filter(
+            ProgramRun.user_id == current_user.id,
+            CompletedSet.planned_set_id.is_(None),
+            ScheduledWorkout.scheduled_date >= eight_weeks_ago,
+            ScheduledWorkout.completed_at.isnot(None),
+            Exercise.muscle_group.isnot(None),
+        )
+        .group_by(ScheduledWorkout.scheduled_date, Exercise.muscle_group)
+        .all()
+    )
+
+    volume_rows = list(planned_volume) + list(unplanned_volume)
 
     vol_by_week: dict[date, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for scheduled_date, muscle_group, cnt in volume_rows:
