@@ -411,7 +411,8 @@
     </div>
 
     <form action="/workouts/{{ workout.id }}/add-exercise" method="POST"
-          class="flex-1 overflow-y-auto">
+          class="flex-1 overflow-y-auto overscroll-contain"
+          style="-webkit-overflow-scrolling: touch;">
       <div class="px-5 py-4 space-y-4">
         <div>
           <label class="text-[10px] uppercase tracking-[0.2em] text-gray-600 font-mono mb-1 block">Exercise</label>
@@ -610,12 +611,10 @@
 
   function openAddExModal() {
     document.getElementById('add-ex-active-modal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
   }
 
   function closeAddExModal() {
     document.getElementById('add-ex-active-modal').classList.add('hidden');
-    document.body.style.overflow = '';
   }
 
   function addExActiveSetRow() {
