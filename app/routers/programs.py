@@ -190,9 +190,9 @@ def program_list(
     }
 
     return templates.TemplateResponse(
+        request,
         "program_list.html",
         {
-            "request": request,
             "user": current_user,
             "programs": confirmed,
             "draft": draft,
@@ -212,8 +212,9 @@ def wizard_step1_page(
     current_user: User = Depends(get_current_user),
 ) -> HTMLResponse:
     return templates.TemplateResponse(
+        request,
         "program_builder.html",
-        {"request": request, "user": current_user, "step": 1, "program": None},
+        {"user": current_user, "step": 1, "program": None},
     )
 
 
@@ -257,8 +258,9 @@ def wizard_step2_page(
 ) -> HTMLResponse:
     program = _load_full(program_id, current_user.id, db)
     return templates.TemplateResponse(
+        request,
         "program_builder.html",
-        {"request": request, "user": current_user, "step": 2, "program": program},
+        {"user": current_user, "step": 2, "program": program},
     )
 
 
@@ -341,9 +343,9 @@ def wizard_step3_page(
     exercise_groups = _build_exercise_groups(current_day.planned_sets) if current_day.planned_sets else []
 
     return templates.TemplateResponse(
+        request,
         "program_builder.html",
         {
-            "request": request,
             "user": current_user,
             "step": 3,
             "program": program,
@@ -524,9 +526,9 @@ def wizard_step4_review(
     ]
 
     return templates.TemplateResponse(
+        request,
         "program_builder.html",
         {
-            "request": request,
             "user": current_user,
             "step": 4,
             "program": program,
@@ -678,9 +680,9 @@ async def csv_preview(
     rows_b64 = base64.b64encode(json.dumps(rows).encode()).decode()
 
     return templates.TemplateResponse(
+        request,
         "csv_review.html",
         {
-            "request": request,
             "user": current_user,
             "program_name": program_name,
             "exercise_review": exercise_review,

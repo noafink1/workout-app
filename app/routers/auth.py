@@ -17,7 +17,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.get("/register", response_class=HTMLResponse)
 def register_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("auth/register.html", {"request": request})
+    return templates.TemplateResponse(request, "auth/register.html")
 
 
 @router.post("/register")
@@ -32,8 +32,9 @@ def register(
     existing = db.query(User).filter(User.email == email.lower().strip()).first()
     if existing:
         return templates.TemplateResponse(
+            request,
             "auth/register.html",
-            {"request": request, "error": "An account with that email already exists."},
+            {"error": "An account with that email already exists."},
             status_code=400,
         )
 
@@ -60,7 +61,7 @@ def register(
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("auth/login.html", {"request": request})
+    return templates.TemplateResponse(request, "auth/login.html")
 
 
 @router.post("/login")
@@ -73,8 +74,9 @@ def login(
     user = db.query(User).filter(User.email == email.lower().strip()).first()
     if not user or not verify_password(password, user.hashed_password):
         return templates.TemplateResponse(
+            request,
             "auth/login.html",
-            {"request": request, "error": "Invalid email or password."},
+            {"error": "Invalid email or password."},
             status_code=401,
         )
 

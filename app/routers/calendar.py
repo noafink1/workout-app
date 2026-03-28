@@ -177,9 +177,9 @@ def calendar_view(
     )
 
     return templates.TemplateResponse(
+        request,
         "calendar.html",
         {
-            "request": request,
             "user": current_user,
             "today": today,
             "year": year,
@@ -229,9 +229,9 @@ def start_program_form(
     total_training_days = sum(len(b.training_days) for b in program.blocks)
 
     return templates.TemplateResponse(
+        request,
         "program_start.html",
         {
-            "request": request,
             "user": current_user,
             "program": program,
             "today": date.today(),

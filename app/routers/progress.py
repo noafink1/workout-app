@@ -154,9 +154,9 @@ def progress_page(
     })
 
     return templates.TemplateResponse(
+        request,
         "progress.html",
         {
-            "request": request,
             "user": current_user,
             "lift_charts": lift_charts,
             "accessory_bests": accessory_bests,

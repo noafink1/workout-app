@@ -75,9 +75,9 @@ def exercises_page(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "exercises.html",
         {
-            "request": request,
             "user": current_user,
             "groups": groups,
             "ungrouped": ungrouped,

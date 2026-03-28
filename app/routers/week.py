@@ -101,9 +101,9 @@ def week_page(
     muscle_sets = compute_muscle_sets(workouts)
 
     return templates.TemplateResponse(
+        request,
         "week.html",
         {
-            "request": request,
             "user": current_user,
             "week_label": label,
             "workouts_by_day": workouts_by_day,

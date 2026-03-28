@@ -165,9 +165,9 @@ def homepage(
     show_getting_started = not has_any_1rm and not has_any_run
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "user": current_user,
             "today": today,
             "today_workout": today_workout,

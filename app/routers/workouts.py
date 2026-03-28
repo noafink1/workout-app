@@ -280,9 +280,9 @@ def workout_view(
     )
 
     return templates.TemplateResponse(
+        request,
         "workout_view.html",
         {
-            "request": request,
             "user": current_user,
             "workout": workout,
             "exercise_groups": exercise_groups,

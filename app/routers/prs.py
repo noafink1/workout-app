@@ -73,9 +73,9 @@ def prs_page(
 ) -> HTMLResponse:
     lifts_data = _build_lift_data(current_user.id, db)
     return templates.TemplateResponse(
+        request,
         "prs.html",
         {
-            "request": request,
             "user": current_user,
             "lifts_data": lifts_data,
             "today": str(date.today()),
